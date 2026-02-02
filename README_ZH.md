@@ -143,7 +143,7 @@ ollama serve
 
 重启 pi，如果看到这个提示就说明成功了：
 ```
-🧠 Hippocampus V5.3 Online (Local LLM: qwen3:8b)
+🧠 Hippocampus V5.4.1 Online (Local LLM: qwen3:8b)
 ```
 
 如果看到 `Regex Mode`，说明 Ollama 没检测到，但插件仍然可以正常工作。
@@ -212,7 +212,7 @@ localLLM: {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Hippocampus V5.3                         │
+│                    Hippocampus V5.4.1                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  用户输入                                                    │

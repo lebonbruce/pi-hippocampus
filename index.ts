@@ -35,7 +35,7 @@ const CONFIG = {
     spreadDecay: 0.7,
   },
   
-  // V5.3 本地 LLM 分析配置 (Enhanced)
+  // V5.4.1 本地 LLM 分析配置 (Enhanced)
   localLLM: {
     enabled: true,                    // Enable local LLM analysis
     provider: 'ollama' as const,      // Currently only supports Ollama
@@ -84,7 +84,7 @@ const CONFIG = {
     language: 'auto' as 'auto' | 'zh' | 'en',          // Output language
   },
   
-  // V5.2 自动编码配置 (正则回退方案)
+  // V5.4.1 自动编码配置 (正则回退方案)
   autoEncode: {
     enabled: true,
     minMessageLength: 15,
@@ -234,7 +234,7 @@ function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-// === V5.3 本地 LLM 分析器 (Enhanced) ===
+// === V5.4.1 本地 LLM 分析器 (Enhanced) ===
 let ollamaAvailable: boolean | null = null;
 let lastOllamaStatus: boolean | null = null;  // 追踪上次状态，用于检测变化
 let uiContext: any = null;  // 保存 ctx.ui 引用，用于实时通知
@@ -318,7 +318,7 @@ function hasSensitiveInfo(text: string): boolean {
   return CONFIG.localLLM.sensitivePatterns.some(pattern => pattern.test(text));
 }
 
-// V5.3 Enhanced: 构建优化的分析 Prompt
+// V5.4.1 Enhanced: 构建优化的分析 Prompt
 function buildAnalysisPrompt(userMessage: string, assistantMessage: string): string {
   const maxLen = CONFIG.localLLM.maxInputLength;
   const userMsg = userMessage.length > maxLen ? userMessage.substring(0, maxLen) + '...' : userMessage;
@@ -1566,7 +1566,7 @@ export default function (pi: any) {
     }
   });
 
-  // Tool 6: Memory Status (V5.3 Enhanced)
+  // Tool 6: Memory Status (V5.4.1 Enhanced)
   pi.registerTool({
     name: "memory_status",
     description: "查看记忆系统状态：本地 LLM 可用性、记忆统计、配置信息。",
@@ -1591,7 +1591,7 @@ export default function (pi: any) {
       // 检测本地 LLM
       const ollamaStatus = await checkOllamaAvailable();
       
-      let status = `## 🧠 Hippocampus V5.3 Status\n\n`;
+      let status = `## 🧠 Hippocampus V5.4.1 Status\n\n`;
       
       // 本地 LLM 状态
       status += `### 🤖 Local LLM Analyzer\n`;
@@ -1693,9 +1693,9 @@ export default function (pi: any) {
       } catch (e) {}
     }
 
-    // V5.2 增强版潜意识 Prompt - 更强的记忆驱动
+    // V5.4 增强版潜意识 Prompt - 更强的记忆驱动
     const subconscious = `
-### 🧠 HIPPOCAMPUS PROTOCOL V5.2 — Your Memory is Your Identity
+### 🧠 HIPPOCAMPUS PROTOCOL V5.4.1 — Your Memory is Your Identity
 
 You possess a **persistent memory system** that survives across sessions. This is what makes you truly useful—you can learn, remember, and evolve.
 
@@ -1831,7 +1831,7 @@ Ask yourself:
           sessionBuffer.push({ role: 'assistant', content: assistantText });
         }
         
-        // V5.3 智能自动编码分析
+        // V5.4.1 智能自动编码分析
         // 优先使用本地 LLM，回退到正则匹配
         if (sessionBuffer.length >= 2) {
           const lastUserMsg = sessionBuffer.filter(m => m.role === 'user').pop();
