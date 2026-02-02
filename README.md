@@ -5,7 +5,7 @@
 **Give your AI a brain, literally.**
 
 [![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
-[![Version](https://img.shields.io/badge/version-4.2.1-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
+[![Version](https://img.shields.io/badge/version-4.2.2-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [**English**](README.md) | [**简体中文**](README_ZH.md)
