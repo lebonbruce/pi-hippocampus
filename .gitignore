@@ -1,0 +1,22 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# System
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+*.js
+!index.js (if applicable, but we use ts)
+*.map
+
+# Editor
+.vscode/
+.idea/
+
+# Pi Specific
+.pi-memory/
+memories.db
