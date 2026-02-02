@@ -1,5 +1,18 @@
 node_modules/
 .DS_Store
-.cache/
+Thumbs.db
+
+# Build
+dist/
+*.js
+!index.js (if applicable, but we use ts)
+*.map
+
+# Editor
+.vscode/
+.idea/
+
+# Pi Specific
+.pi-hippocampus/
 memories.db
 memories.db-*

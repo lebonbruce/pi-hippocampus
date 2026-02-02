@@ -5,7 +5,7 @@
 **AIに「脳」を与えよう。**
 
 [![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
-[![Version](https://img.shields.io/badge/version-4.2.5-blue)](https://github.com/lebonbruce/pi-memory/releases)
+[![Version](https://img.shields.io/badge/version-4.2.5-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [**English**](README.md) | [**简体中文**](README_ZH.md) | [**日本語**](README_JA.md)
@@ -48,21 +48,21 @@ Hippocampusは **「透過的想起」** を使用します。重要な記憶で
 
 ### 🍎 Mac / Linux (Bash/Zsh)
 ```bash
-mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && rm -rf pi-hippocampus && git clone https://github.com/lebonbruce/pi-memory.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ 完了！エージェントを再起動してください。"
+mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && rm -rf pi-hippocampus && git clone https://github.com/lebonbruce/pi-hippocampus.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ 完了！エージェントを再起動してください。"
 ```
 
 ### 🪟 Windows (PowerShell)
 > **Note**: "Windows PowerShell" で実行してください。
 
 ```powershell
-$p="$env:USERPROFILE\.pi\agent\extensions"; New-Item -ItemType Directory -Force -Path $p; cd $p; Remove-Item pi-hippocampus -Recurse -Force -ErrorAction SilentlyContinue; git clone https://github.com/lebonbruce/pi-memory.git pi-hippocampus; cd pi-hippocampus; npm install; Write-Host "✅ 完了！エージェントを再起動してください。"
+$p="$env:USERPROFILE\.pi\agent\extensions"; New-Item -ItemType Directory -Force -Path $p; cd $p; Remove-Item pi-hippocampus -Recurse -Force -ErrorAction SilentlyContinue; git clone https://github.com/lebonbruce/pi-hippocampus.git pi-hippocampus; cd pi-hippocampus; npm install; Write-Host "✅ 完了！エージェントを再起動してください。"
 ```
 
 ### 🪟 Windows (Command Prompt / cmd.exe)
 > **Note**: `C:\Users\Name>` の画面で実行する場合：
 
 ```cmd
-cd /d "%USERPROFILE%" && if not exist ".pi\agent\extensions" mkdir ".pi\agent\extensions" && cd ".pi\agent\extensions" && if exist "pi-hippocampus" rmdir /s /q pi-hippocampus && git clone https://github.com/lebonbruce/pi-memory.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ 完了！エージェントを再起動してください。"
+cd /d "%USERPROFILE%" && if not exist ".pi\agent\extensions" mkdir ".pi\agent\extensions" && cd ".pi\agent\extensions" && if exist "pi-hippocampus" rmdir /s /q pi-hippocampus && git clone https://github.com/lebonbruce/pi-hippocampus.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ 完了！エージェントを再起動してください。"
 ```
 
 ---
@@ -71,7 +71,7 @@ cd /d "%USERPROFILE%" && if not exist ".pi\agent\extensions" mkdir ".pi\agent\ex
 
 難しい話は抜きにしましょう。要点はこうです：
 
-記憶は高次元ベクトル空間 (`~/.pi-memory/`) に生きています。
+記憶は高次元ベクトル空間 (`~/.pi-hippocampus/`) に生きています。
 
 1.  **生体模倣タグ**: すべての記憶は **Fact（事実）**、**Rule（ルール）**、**Event（経験）** に分類されます。ルールは定着しやすく、経験は時間とともに薄れます。
 2.  **適者生存**: 記憶同士が競争します。
@@ -88,7 +88,7 @@ cd /d "%USERPROFILE%" && if not exist ".pi\agent\extensions" mkdir ".pi\agent\ex
 
 バグやアイデアがあれば、Issuesに投げてください。
 
-> **GitHub Issues**: [こちらをクリック](https://github.com/lebonbruce/pi-memory/issues)
+> **GitHub Issues**: [こちらをクリック](https://github.com/lebonbruce/pi-hippocampus/issues)
 
 ---
 

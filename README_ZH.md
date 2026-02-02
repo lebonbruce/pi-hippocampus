@@ -5,7 +5,7 @@
 **给 AI 装个海马体，治好它的健忘症。**
 
 [![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
-[![Version](https://img.shields.io/badge/version-4.2.5-blue)](https://github.com/lebonbruce/pi-memory/releases)
+[![Version](https://img.shields.io/badge/version-4.2.5-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [**English**](README.md) | [**简体中文**](README_ZH.md) | [**日本語**](README_JA.md)
@@ -53,21 +53,21 @@
 
 ### 🍎 Mac / Linux (Bash/Zsh)
 ```bash
-mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && rm -rf pi-hippocampus && git clone https://github.com/lebonbruce/pi-memory.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ 搞定！重启你的 Agent 试试吧。"
+mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && rm -rf pi-hippocampus && git clone https://github.com/lebonbruce/pi-hippocampus.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ 搞定！重启你的 Agent 试试吧。"
 ```
 
 ### 🪟 Windows (PowerShell)
 > **注意**: 请打开 "Windows PowerShell" 运行（推荐）。
 
 ```powershell
-$p="$env:USERPROFILE\.pi\agent\extensions"; New-Item -ItemType Directory -Force -Path $p; cd $p; Remove-Item pi-hippocampus -Recurse -Force -ErrorAction SilentlyContinue; git clone https://github.com/lebonbruce/pi-memory.git pi-hippocampus; cd pi-hippocampus; npm install; Write-Host "✅ 搞定！重启你的 Agent 试试吧。"
+$p="$env:USERPROFILE\.pi\agent\extensions"; New-Item -ItemType Directory -Force -Path $p; cd $p; Remove-Item pi-hippocampus -Recurse -Force -ErrorAction SilentlyContinue; git clone https://github.com/lebonbruce/pi-hippocampus.git pi-hippocampus; cd pi-hippocampus; npm install; Write-Host "✅ 搞定！重启你的 Agent 试试吧。"
 ```
 
 ### 🪟 Windows (CMD / 命令提示符)
 > **注意**: 如果你的界面是 `C:\Users\Name>`，请用这个。
 
 ```cmd
-cd /d "%USERPROFILE%" && if not exist ".pi\agent\extensions" mkdir ".pi\agent\extensions" && cd ".pi\agent\extensions" && if exist "pi-hippocampus" rmdir /s /q pi-hippocampus && git clone https://github.com/lebonbruce/pi-memory.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ 搞定！重启你的 Agent 试试吧。"
+cd /d "%USERPROFILE%" && if not exist ".pi\agent\extensions" mkdir ".pi\agent\extensions" && cd ".pi\agent\extensions" && if exist "pi-hippocampus" rmdir /s /q pi-hippocampus && git clone https://github.com/lebonbruce/pi-hippocampus.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ 搞定！重启你的 Agent 试试吧。"
 ```
 
 ---
@@ -76,7 +76,7 @@ cd /d "%USERPROFILE%" && if not exist ".pi\agent\extensions" mkdir ".pi\agent\ex
 
 我不贴那些复杂的数学公式了，简单说一下它怎么运作的。
 
-它在你的本地（`~/.pi-memory/`）维护了一个**高维向量空间**。
+它在你的本地（`~/.pi-hippocampus/`）维护了一个**高维向量空间**。
 
 1.  **仿生编码**：每条记忆进来，先被打上标签。是**事实**（Fact）？是**规则**（Rule）？还是只是个流水账**经历**（Event）？
 2.  **突触竞争**：
@@ -96,7 +96,7 @@ cd /d "%USERPROFILE%" && if not exist ".pi\agent\extensions" mkdir ".pi\agent\ex
 
 有问题直接在 Issues 里吼一声就行。
 
-> **GitHub Issues**: [点这里反馈](https://github.com/lebonbruce/pi-memory/issues)
+> **GitHub Issues**: [点这里反馈](https://github.com/lebonbruce/pi-hippocampus/issues)
 
 ---
 

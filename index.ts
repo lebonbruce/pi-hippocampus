@@ -6,7 +6,7 @@ import * as os from "node:os";
 import * as crypto from "node:crypto";
 
 // === 配置与常量 ===
-const GLOBAL_MEMORY_DIR = path.join(os.homedir(), ".pi-memory");
+const GLOBAL_MEMORY_DIR = path.join(os.homedir(), ".pi-hippocampus");
 const DB_PATH = path.join(GLOBAL_MEMORY_DIR, "memories.db");
 const CACHE_DIR = path.join(GLOBAL_MEMORY_DIR, ".cache");
 
