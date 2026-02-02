@@ -128,14 +128,8 @@ curl -fsSL https://ollama.com/install.sh | sh
 ### 2. 下载模型
 
 ```bash
-# 推荐：Qwen2.5 7B（中英文都很好）
-ollama pull qwen2.5:7b
-
-# 或者更小更快的版本
-ollama pull qwen2.5:3b
-
-# 或者英文为主的场景
-ollama pull llama3.1:8b
+# 你可以下载任何 Ollama 支持的模型
+ollama pull qwen3:8b
 ```
 
 ### 3. 启动服务
@@ -211,15 +205,6 @@ localLLM: {
   language: 'auto',                 // 'auto' | 'zh' | 'en'
 }
 ```
-
-### 推荐模型
-
-| 模型 | VRAM | 速度 | 中文 | 推荐场景 |
-|------|------|------|------|----------|
-| `qwen3:8b` | ~6GB | ⚡⚡ | ✅ 极佳 | **最新默认推荐** |
-| `qwen2.5:7b` | ~5GB | ⚡⚡ | ✅ 优秀 | 备选方案 |
-| `qwen2.5:3b` | ~2GB | ⚡⚡⚡ | ✅ 不错 | 低配机器 |
-| `llama3.1:8b` | ~5GB | ⚡⚡ | ⚠️ 一般 | 英文场景 |
 
 ---
 

@@ -128,14 +128,8 @@ Download from [ollama.com/download](https://ollama.com/download)
 ### 2. Pull a Model
 
 ```bash
-# Recommended: Qwen2.5 7B (great for both English and Chinese)
-ollama pull qwen2.5:7b
-
-# Or smaller/faster
-ollama pull qwen2.5:3b
-
-# Or for English-only
-ollama pull llama3.1:8b
+# You can pull any model supported by Ollama
+ollama pull qwen3:8b
 ```
 
 ### 3. Start the Service
@@ -211,15 +205,6 @@ localLLM: {
   language: 'auto',                 // 'auto' | 'zh' | 'en'
 }
 ```
-
-### Recommended Models
-
-| Model | VRAM | Speed | Notes |
-|-------|------|-------|-------|
-| `qwen3:8b` | ~6GB | ⚡⚡ | **Latest Default. Excellent.** |
-| `qwen2.5:7b` | ~5GB | ⚡⚡ | Great alternative |
-| `qwen2.5:3b` | ~2GB | ⚡⚡⚡ | For low-spec machines |
-| `llama3.1:8b` | ~5GB | ⚡⚡ | Better for English-only |
 
 ---
 
