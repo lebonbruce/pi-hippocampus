@@ -1,20 +1,32 @@
 # 🧠 pi-memory V4.1 (海馬体アーキテクチャ)
 
-> **[pi-agent](https://github.com/mariozechner/pi-coding-agent) のための生体模倣メモリ拡張機能**
+> **[pi](https://github.com/mariozechner/pi) のための生体模倣メモリ拡張機能**
 > *Hippocampus Architecture | Cross-Cortex Association | Subconscious Protocol*
 
 [🇺🇸 English](README.md) | [🇨🇳 中文文档](README_ZH.md)
 
-**Hippocampus（海馬体）** は単なるデータベースではありません。人間の脳のメカニズムを模倣した、生きた記憶システムです：
-- **🧠 自動エンコーディング**: **Fact**（事実）、**Rule**（ルール）、**Event**（経験）を自動的に分類します。
-- **🕸️ クロス・コーテックス・アソシエーション**: 重要度に基づいて、現在のプロジェクトにいながら*他のプロジェクト*の重要な情報を想起します（透過的想起）。
-- **📉 自然な忘却**: エビングハウスの忘却曲線に従い、些細な詳細は時間とともに薄れますが、核心的な原則は保持されます。
+**Hippocampus（海馬体）** は単なるデータベースではありません。人間の脳のメカニズムを模倣した、生きた記憶システムです。
 
 ---
 
-## ⚡️ ワンライナー・インストール (LLM用)
+## 🤖 AIエージェント用プロンプト (Cursor, OpenCode)
 
-**以下のコマンドをターミナルにコピー＆ペーストしてください (Mac/Linux/WSL):**
+**ユーザー**: 以下のプロンプトをAIアシスタントに送信してください：
+
+```text
+Hey, please read this raw readme to understand the "Hippocampus Architecture":
+https://raw.githubusercontent.com/lebonbruce/pi-memory/main/README_JA.md
+
+Tell me why this bio-mimetic memory system is better than a simple JSON database, and then install it for me using this one-liner:
+
+mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && git clone https://github.com/lebonbruce/pi-memory.git && cd pi-memory && npm install && echo "✅ Hippocampus Installed!"
+```
+
+---
+
+## ⚡️ 手動インストール (For Humans)
+
+**以下のコマンドをターミナルにコピー＆ペーストしてください:**
 
 ```bash
 mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && git clone https://github.com/lebonbruce/pi-memory.git && cd pi-memory && npm install && echo "✅ Hippocampus Installed! piを再起動してください。"

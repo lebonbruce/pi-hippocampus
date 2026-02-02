@@ -1,30 +1,40 @@
 # 🧠 pi-memory V4.1 (Hippocampus Architecture)
 
-> **Bio-mimetic Memory Extension for [pi-agent](https://github.com/mariozechner/pi-coding-agent)**
+> **Bio-mimetic Memory Extension for [pi](https://github.com/mariozechner/pi)**
 > *Hippocampus Architecture | Cross-Cortex Association | Subconscious Protocol*
 
-[![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/mariozechner/pi-coding-agent)
+[![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/mariozechner/pi)
 [![Version](https://img.shields.io/badge/version-4.1.0-blue)](https://github.com/lebonbruce/pi-memory)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [🇨🇳 中文文档](README_ZH.md) | [🇯🇵 日本語ドキュメント](README_JA.md)
 
-**Hippocampus** is not just a database; it is a **living memory system** designed for AI agents:
-- **🧠 Auto-Encoding**: Automatically classifies information into **Facts**, **Rules**, and **Events**.
-- **🕸️ Cross-Cortex Association**: Recalls critical information from *other projects* (permeable recall) based on importance.
-- **📉 Natural Decay**: Forgets trivial details over time (Ebbinghaus curve) while retaining core principles.
+**Hippocampus** is a living memory system for AI agents, featuring **Auto-Encoding** (Facts/Rules/Events), **Cross-Cortex Association** (Permeable Recall), and **Natural Decay**.
 
 ---
 
-## ⚡️ One-Liner Install (For Humans & LLMs)
+## 🤖 For AI Agents (Cursor, OpenCode, Windsurf)
+
+**User**: Please copy the prompt below and paste it to your AI agent.
+
+```text
+Hey, please read this raw readme to understand the "Hippocampus Architecture":
+https://raw.githubusercontent.com/lebonbruce/pi-memory/main/README.md
+
+Tell me why this bio-mimetic memory system is better than a simple JSON database, and then install it for me using this one-liner:
+
+mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && git clone https://github.com/lebonbruce/pi-memory.git && cd pi-memory && npm install && echo "✅ Hippocampus Installed!"
+```
+
+---
+
+## ⚡️ For Humans (Manual Install)
 
 **Copy & Paste this into your terminal (Mac/Linux/WSL):**
 
 ```bash
 mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && git clone https://github.com/lebonbruce/pi-memory.git && cd pi-memory && npm install && echo "✅ Hippocampus Installed! Please restart pi."
 ```
-
-*(This command automatically creates the directory, clones the repo, and installs SQLite dependencies.)*
 
 ---
 
@@ -37,7 +47,7 @@ This architecture is built on standard **TypeScript** + **SQLite-vec**. It is hi
 
 > **📩 Contact the Author:**
 > - **GitHub Issues**: [Open a ticket](https://github.com/lebonbruce/pi-memory/issues) (Fastest way)
-> - **Email**: `lebonbruce@gmail.com` (If urgent)
+> - **Email**: `lebonbruce@gmail.com`
 > - **Twitter/X**: `@lebonbruce`
 
 ---
