@@ -5,25 +5,12 @@
 **给 AI 装个海马体，治好它的健忘症。**
 
 [![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
-[![Version](https://img.shields.io/badge/version-5.7.1-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
+[![Version](https://img.shields.io/badge/version-5.7.4-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [**English**](README.md) | [**简体中文**](README_ZH.md) | [**日本語**](README_JA.md)
 
 </div>
-
----
-
-## 🚀 V5.7.1 新特性
-
-### 零摩擦体验
-- **秒级启动**：UI 界面瞬间加载，绝不阻塞。记忆摘要任务在您第一次输入后悄悄在后台进行。
-- **自动代谢**：彻底移除了手动整理任务。系统会在后台静默合并碎片记忆，保持大脑清晰。
-
-### 更聪明的本地检索 (Local LLM)
-- **智能重排 (Rerank)**：先用向量检索 Top 100，再用本地 LLM 挑选出真正相关的 Top 10，准确率大幅提升。
-- **意图理解**：即使只问一句“怎么用？”，系统也能结合上下文补全为完整的技术问题。
-- **记忆晨报**：每次会话开始时，自动为您生成一份简报，回顾核心规则和昨天的进度。
 
 ---
 

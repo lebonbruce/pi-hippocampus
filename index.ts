@@ -2454,7 +2454,7 @@ Ask yourself:
     startupMemoriesCache = []; // 清空缓存
     startupSummaryDone = false;
     
-    const VERSION = "v5.7.1";
+    const VERSION = "v5.7.4";
     const projectId = getProjectHash(ctx.cwd);
     currentProjectId = projectId;
     
