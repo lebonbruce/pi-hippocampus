@@ -4,8 +4,6 @@ Thumbs.db
 
 # Build
 dist/
-*.js
-!index.js (if applicable, but we use ts)
 *.map
 
 # Editor
