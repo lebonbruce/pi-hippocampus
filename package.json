@@ -1,5 +1,5 @@
 {
-  "name": "pi-memory",
+  "name": "pi-hippocampus",
   "version": "4.1.0",
   "description": "Pi memory extension with SQLite + sqlite-vec vector search",
   "type": "module",

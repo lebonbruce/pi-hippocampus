@@ -47,7 +47,7 @@ async function loadDependencies() {
   transformersEnv.cacheDir = CACHE_DIR;
 }
 
-// === 数据库初始化 (V4.0 Schema: Hippocampus) ===
+// === 数据库初始化 (V4.2 Schema: Hippocampus) ===
 async function initDB() {
   if (db) return db;
   await loadDependencies();
@@ -506,7 +506,7 @@ Don't wait for user orders. If a conversation segment reveals new insights, pref
   });
 
   pi.on("session_start", async (_event: any, ctx: any) => {
-    ctx.ui.notify("🧠 V4.0 海马体记忆引擎已启动 (Bio-mimetic Architecture)", "info");
+    ctx.ui.notify("🧠 Hippocampus Memory Engine Online (Neuro-Ranking™ Active)", "info");
   });
 
   pi.on("session_shutdown", async () => closeDB());

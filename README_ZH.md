@@ -1,57 +1,83 @@
-# 🧠 pi-memory V4.1 (海马体架构)
+<div align="center">
 
-> **专为 [pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) 打造的仿生记忆扩展插件**
-> *海马体架构 | 跨皮层联想 | 潜意识协议*
+# 🧠 pi-hippocampus
 
-[🇺🇸 English](README.md) | [🇯🇵 日本語ドキュメント](README_JA.md)
+**赋予人工智能真正的“生物级”记忆**
 
-**海马体 (Hippocampus)** 是一个先进的 AI 记忆系统，它不仅仅是一个数据库，更模拟了人脑的记忆机制：
-- **🧠 自动编码**：像人一样自动区分 **Fact** (事实)、**Rule** (规则) 和 **Event** (经历)。
-- **🕸️ 智能联想**：支持跨项目记忆穿透 (Cross-Cortex Association)。
-- **📉 自然遗忘**：遵循艾宾浩斯遗忘曲线。
+[![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
+[![Version](https://img.shields.io/badge/version-4.2.2-blue)](https://github.com/lebonbruce/pi-memory/releases)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
----
+[**English**](README.md) | [**简体中文**](README_ZH.md) | [**日本語**](README_JA.md)
 
-## 🤖 AI 助手专用指令 (Cursor, OpenCode)
-
-**用户**: 请复制以下 Prompt 发送给你的 AI 助手：
-
-```text
-Hey, please read this raw readme to understand the "Hippocampus Architecture":
-https://raw.githubusercontent.com/lebonbruce/pi-memory/main/README_ZH.md
-
-Tell me why this bio-mimetic memory system is better than a simple JSON database, and then install it for me using this one-liner:
-
-mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && git clone https://github.com/lebonbruce/pi-memory.git && cd pi-memory && npm install && echo "✅ Hippocampus Installed!"
-```
+</div>
 
 ---
 
-## ⚡️ 人类安装指南
+> *"我受够了像复读机一样给 AI 重复同样的指令。所以我决定给它装个脑子。"*
 
-如果你习惯手动操作，请执行：
+你好，我是一个重度依赖 AI 编程的独立开发者。
+市面上的 AI 工具（Cursor, Windsurf, Copilot...）都很强，但它们都有一个共同的**致命痛点**：
+**它们不仅没有记忆，甚至没有“潜意识”。**
+每次关掉窗口，或者切换一个项目，它们就变得像个陌生人。我得反复教它们：“我不喜欢分号”、“我的 API Key 是这个”、“这个项目的架构是 MVC”……
+
+**我开发 `pi-hippocampus` 就是为了解决我自己这个痛点。**
+
+---
+
+## ✨ 极致体验：我的设计哲学
+
+### 🧘‍♂️ 零摩擦 (Zero Friction)
+我不想再学复杂的 Prompt 技巧了。我希望它是**隐形**的。
+安装后，你不需要刻意操作。它就像在后台静默运行的海马体，把你随口说出的偏好、解决过的难题，自动结晶为智慧。
+你会感觉你的 AI 终于**开始懂你了**。
+
+### 🧠 终结“健忘症”
+有了它，你的本地数据库 = 你的**第二大脑**。
+- **永久记忆**：告诉它一次你的代码洁癖，它永远遵守。
+- **隐私绝对安全**：数据只存在你的 `~/.pi-memory/` 本地文件里。我不信任云端，所以我把这一切做成本地的。换电脑？直接拷走这个文件，你的 AI 的“灵魂”就跟着你走了。
+
+### 🔮 跨项目“直觉” (Intuition)
+这是我最喜欢的功能。
+通常项目之间的记忆是隔离的。但我发现，我在 A 项目踩过的坑，往往对 B 项目有借鉴意义。
+所以我设计了 **"穿透式联想 (Permeable Recall)"**。当你在新项目遇到类似难题时，它会打破隔离，把旧项目的关键解决方案推送到你面前。
+这不再是搜索，这就是**直觉**。
+
+---
+
+## ⚡️ 一键植入
+
+> **注意**: 目前仅适用于 **pi-agent** (因为它足够开源，允许我魔改底层)。
+
+在终端运行：
 
 ```bash
-mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && git clone https://github.com/lebonbruce/pi-memory.git && cd pi-memory && npm install && echo "✅ 海马体已植入！请重启 Agent。"
+mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && git clone https://github.com/lebonbruce/pi-memory.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ 海马体已植入！"
 ```
 
----
-
-## 🤝 移植与商务合作
-
-本插件核心架构 (V4.1 Hippocampus) 基于通用的 TypeScript 和 SQLite-vec 构建，理论上可以轻松移植到其他 AI 编码工具中。
-
-> **📩 联系作者**:
-> - **GitHub Issues**: [提交工单](https://github.com/lebonbruce/pi-memory/issues)
-> - **Email**: `lebonbruce@gmail.com`
-> - **Twitter**: `@lebonbruce`
+*安装后重启 Agent 即可。*
 
 ---
 
-## 📂 技术细节
+## 🧩 核心原理
 
-- **物理存储**: `~/.pi-memory/memories.db`，实现“物理统一，逻辑隔离”。
-- **评分算法**: $Score = Similarity \times (1 + \log(Access)) \times Importance \times Decay \times ContextPenalty$
+我参考了神经科学，设计了一套仿生算法：
+
+- **自然遗忘**: 引入了**艾宾浩斯遗忘曲线**。不重要的琐事会自然淡忘，而核心原则会随着使用越来越深刻。
+- **分类编码**: 自动区分 Fact (事实)、Rule (规则) 和 Event (经历)。
+
+$$ Score = Similarity \times (1 + \log(Access)) \times Importance \times Decay \times ContextPenalty $$
 
 ---
-*Generated by pi-agent | V4.1 Hippocampus Architecture*
+
+## 🤝 交流
+
+我也在探索如何把这套“记忆优先”的架构移植到 VSCode 或 Cursor 中。如果你对 AI 记忆系统感兴趣，欢迎来聊聊！
+
+> **📩 参与讨论:** [GitHub Issues](https://github.com/lebonbruce/pi-memory/issues)
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ by an indie dev for the community.</sub>
+</div>
