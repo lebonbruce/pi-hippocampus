@@ -246,7 +246,7 @@ function updateStatusBar(ctx: any) {
   const modelDisplay = currentLLMMode === 'Regex' ? 'Regex' : currentLLMMode;
   const recallText = lastRecallCount >= 1000 ? '999+' : lastRecallCount.toString();
   const recallDisplay = lastRecallCount > 0 ? ` | Recall: ${recallText}` : '';
-  ctx.ui.setStatus("hippocampus", `🧠 ${modelDisplay}${recallDisplay}`);
+  ctx.ui.setStatus("hippocampus", `🧠 v5.4.1 (${modelDisplay})${recallDisplay}`);
 }
 
 interface LocalLLMAnalysisResult {
@@ -1899,6 +1899,8 @@ Ask yourself:
     lastRecallCount = 0; // 重置召回计数
     uiContext = ctx; // 保存 UI 引用
     
+    const VERSION = "v5.4.1";
+
     // 检测本地 LLM 可用性
     if (CONFIG.localLLM.enabled) {
       const available = await checkOllamaAvailable(true);
@@ -1906,14 +1908,14 @@ Ask yourself:
       
       if (available) {
         currentLLMMode = CONFIG.localLLM.model;
-        ctx.ui.notify(`🧠 Hippocampus (${CONFIG.localLLM.model})`, "info");
+        ctx.ui.notify(`🧠 Hippocampus ${VERSION} (${CONFIG.localLLM.model})`, "info");
       } else {
         currentLLMMode = 'Regex';
-        ctx.ui.notify("🧠 Hippocampus (Regex)", "info");
+        ctx.ui.notify(`🧠 Hippocampus ${VERSION} (Regex)`, "info");
       }
     } else {
       currentLLMMode = 'Regex';
-      ctx.ui.notify("🧠 Hippocampus (Regex)", "info");
+      ctx.ui.notify(`🧠 Hippocampus ${VERSION} (Regex)`, "info");
     }
     updateStatusBar(ctx);
   });
