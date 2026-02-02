@@ -571,7 +571,7 @@ async function loadDependencies() {
   transformersEnv.cacheDir = CACHE_DIR;
 }
 
-// === 数据库初始化 (V5.1 Schema) ===
+// === 数据库初始化 (V5.4.1 Schema) ===
 async function initDB() {
   if (db) return db;
   await loadDependencies();
@@ -632,7 +632,7 @@ async function initDB() {
     );
   `);
 
-  // 5. V5.1 新增：对话缓冲区（用于自动编码分析）
+  // 5. V5.4.1 新增：对话缓冲区（用于自动编码分析）
   db.exec(`
     CREATE TABLE IF NOT EXISTS conversation_buffer (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -648,7 +648,7 @@ async function initDB() {
     const tableInfo = db.pragma("table_info(memories)");
     const hasType = tableInfo.some((col: any) => col.name === "type");
     if (!hasType) {
-      console.log("🧠 Migrating to V5.1...");
+      console.log("🧠 Migrating to V5.4.1...");
       const columns = [
         "ADD COLUMN type TEXT DEFAULT 'fact'",
         "ADD COLUMN importance INTEGER DEFAULT 1",
@@ -721,7 +721,7 @@ async function getProjectActivity(projectId: string): Promise<'current' | 'recen
   return 'stale';
 }
 
-// === V5.1 核心：对话缓冲区管理 ===
+// === V5.4.1 核心：对话缓冲区管理 ===
 async function bufferConversation(projectId: string, role: string, content: string) {
   const database = await initDB();
   database.prepare(`
@@ -752,7 +752,7 @@ async function clearConversationBuffer(projectId: string) {
   database.prepare(`DELETE FROM conversation_buffer WHERE project_id = ?`).run(projectId);
 }
 
-// === V5.2 核心：智能自动编码分析器 ===
+// === V5.4.1 核心：智能自动编码分析器 ===
 interface AutoEncodeResult {
   shouldSave: boolean;
   type?: 'fact' | 'event' | 'rule';
