@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { Text } from "@mariozechner/pi-tui";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -405,20 +406,28 @@ export default function (pi: any) {
       
       if (results.length === 0) return { content: [{ type: "text", text: "No relevant memories found." }] };
 
-      const topResults = results.slice(0, 3);
-      const text = topResults.map((r: any) => {
+      // 返回所有记忆内容给 AI 使用
+      const allMemories = results.map((r: any) => {
         let icon = r.scope === 'global' ? '🌍' : '🏠';
-        if (r.isAlien) icon = '🛸'; // Alien memory icon
+        if (r.isAlien) icon = '🛸';
         const typeIcon = r.type === 'rule' ? '📜' : (r.type === 'event' ? '📅' : '💡');
         const score = Math.round(r.finalScore * 100);
         return `[${r.id}] ${icon}${typeIcon} (Act:${score}%) ${r.content}`;
       }).join("\n");
 
-      let summary = `🧠 Recalled ${results.length} memories`;
-      if (results.length > 3) summary += ` (showing top 3)`;
-      summary += `:\n${text}`;
+      // content 返回完整内容给 AI，details.summary 用于 TUI 显示
+      const summary = `🧠 Recalled ${results.length} memories`;
 
-      return { content: [{ type: "text", text: summary }], details: { results } };
+      return { 
+        content: [{ type: "text", text: `${summary}\n${allMemories}` }], 
+        details: { results, summary, count: results.length } 
+      };
+    },
+    // 自定义渲染：TUI 只显示数量摘要
+    renderResult(result: any, options: any, theme: any) {
+      const count = result.details?.count || 0;
+      const summary = result.details?.summary || `🧠 Recalled ${count} memories`;
+      return new Text(theme.fg("accent", summary), 0, 0);
     }
   });
 
