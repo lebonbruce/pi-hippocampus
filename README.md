@@ -16,7 +16,7 @@
 
 ## Why I Built This
 
-I've been using AI coding tools (*[pi-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)**) for a while. They're powerful, but there's one thing that drives me crazy: **they have the memory of a goldfish**.
+I've been using AI coding tools (**[pi-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)**) for a while. They're powerful, but there's one thing that drives me crazy: **they have the memory of a goldfish**.
 
 Close the session? Forgotten. Switch projects? Forgotten. That API gotcha I explained yesterday? Forgotten.
 
