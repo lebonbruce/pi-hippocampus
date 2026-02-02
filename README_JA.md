@@ -1,6 +1,6 @@
 # 🧠 pi-memory V4.1 (海馬体アーキテクチャ)
 
-> **[pi](https://github.com/mariozechner/pi) のための生体模倣メモリ拡張機能**
+> **[pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) のための生体模倣メモリ拡張機能**
 > *Hippocampus Architecture | Cross-Cortex Association | Subconscious Protocol*
 
 [🇺🇸 English](README.md) | [🇨🇳 中文文档](README_ZH.md)

@@ -1,9 +1,9 @@
 # 🧠 pi-memory V4.1 (Hippocampus Architecture)
 
-> **Bio-mimetic Memory Extension for [pi](https://github.com/mariozechner/pi)**
+> **Bio-mimetic Memory Extension for [pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)**
 > *Hippocampus Architecture | Cross-Cortex Association | Subconscious Protocol*
 
-[![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/mariozechner/pi)
+[![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
 [![Version](https://img.shields.io/badge/version-4.1.0-blue)](https://github.com/lebonbruce/pi-memory)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 

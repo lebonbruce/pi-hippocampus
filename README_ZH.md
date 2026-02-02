@@ -1,6 +1,6 @@
 # 🧠 pi-memory V4.1 (海马体架构)
 
-> **专为 [pi](https://github.com/mariozechner/pi) 打造的仿生记忆扩展插件**
+> **专为 [pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) 打造的仿生记忆扩展插件**
 > *海马体架构 | 跨皮层联想 | 潜意识协议*
 
 [🇺🇸 English](README.md) | [🇯🇵 日本語ドキュメント](README_JA.md)
