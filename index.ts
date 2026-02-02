@@ -35,15 +35,40 @@ const CONFIG = {
     spreadDecay: 0.7,
   },
   
+  // V5.6.0 启动唤醒配置 (Startup Recall)
+  startupRecall: {
+    enabled: true,                    // 是否开启启动唤醒
+    lookbackHours: 24,                // 回溯时间窗口（小时）
+    minImportance: 8,                 // 核心记忆的最小权重阈值
+    maxTokens: 8000,                  // Token 硬限制（无 Ollama 时）
+    maxMemories: 50,                  // 最大记忆条数（硬限制）
+    useLLMSummary: false,             // 有 Ollama 时生成压缩摘要（默认关闭，可手动开启）
+    summaryMaxTokens: 500,            // 摘要最大 Token 数
+  },
+  
+  // V5.6.0 智能检索配置 (RAG with Rerank)
+  ragSearch: {
+    enabled: true,                    // 是否开启智能检索
+    vectorSearchLimit: 100,           // 向量搜索数量（第一阶段）
+    rerankWithLLM: false,             // 使用本地 LLM 重排序（默认关闭，因为会导致每次对话延迟）
+    rerankOutputLimit: 10,            // 重排后输出数量
+    hardLimitNoLLM: 20,               // 无 Ollama 时的硬截断数量
+    includeGlobalCore: true,          // 是否强制包含全局核心记忆
+    globalCoreMinImportance: 7,       // 全局核心记忆的最小重要性
+    globalCoreLimit: 5,               // 全局核心记忆数量限制
+    queryEnhancement: false,          // 使用本地 LLM 增强短查询（默认关闭，会增加延迟）
+    queryEnhancementThreshold: 20,    // 消息长度低于此值时触发查询增强
+  },
+  
   // V5.4.1 本地 LLM 分析配置 (Enhanced)
   localLLM: {
     enabled: true,                    // Enable local LLM analysis
     provider: 'ollama' as const,      // Currently only supports Ollama
     baseUrl: 'http://localhost:11434',
-    model: 'qwen3:8b',                // Fill in your Ollama model name here (e.g., 'qwen3:8b', 'qwen2.5:7b', 'llama3.1:8b')
-    timeout: 10000,                   // Timeout (ms)
+    model: 'auto',                    // Auto-detects best available model (e.g., qwen2.5, llama3)
+    timeout: 20000,                   // Timeout (ms) - Increased to 20s for CPU inference/cold boot
     fallbackToRegex: true,            // Fall back to regex if LLM is unavailable
-    maxInputLength: 800,              // Max input length for speed
+    maxInputLength: 2000,             // Max input length - Increased for better context awareness
     
     // Model parameters
     temperature: 0,                   // 0 = deterministic
@@ -300,11 +325,12 @@ let currentLLMMode: string = 'Regex';  // 当前模式：模型名或 'Regex'
 let lastRecallCount: number = 0;  // 上次召回数量
 
 // 更新底部状态栏（合并显示）
+const STATUS_VERSION = "v5.6.0";
 function updateStatusBar(ctx: any) {
   const modelDisplay = currentLLMMode === 'Regex' ? 'Regex' : currentLLMMode;
   const recallText = lastRecallCount >= 1000 ? '999+' : lastRecallCount.toString();
   const recallDisplay = lastRecallCount > 0 ? ` | Recall: ${recallText}` : '';
-  ctx.ui.setStatus("hippocampus", `🧠 v5.4.2 (${modelDisplay})${recallDisplay}`);
+  ctx.ui.setStatus("hippocampus", `🧠 ${STATUS_VERSION} (${modelDisplay})${recallDisplay}`);
 }
 
 interface LocalLLMAnalysisResult {
@@ -325,13 +351,57 @@ async function checkOllamaAvailable(forceRefresh: boolean = false): Promise<bool
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
     
+    // Request /api/tags to get model list
     const response = await fetch(`${CONFIG.localLLM.baseUrl}/api/tags`, {
       signal: controller.signal
     });
     
     clearTimeout(timeoutId);
-    ollamaAvailable = response.ok;
-    return ollamaAvailable;
+    
+    if (response.ok) {
+      ollamaAvailable = true;
+      
+      // Auto-detect model if set to 'auto'
+      if (CONFIG.localLLM.model === 'auto') {
+        try {
+          const data = await response.json();
+          const models = (data.models || []).map((m: any) => m.name);
+          
+          // Filter out embedding models to avoid selecting them for chat
+          const chatModels = models.filter((m: string) => !m.includes('embed') && !m.includes('nomic'));
+          
+          if (chatModels.length > 0) {
+            // Priority list for Chinese/Coding context
+            const priorities = ['qwen2.5', 'deepseek', 'llama3', 'mistral', 'qwen', 'gemma'];
+            
+            let selected = '';
+            for (const p of priorities) {
+              const match = chatModels.find((m: string) => m.toLowerCase().includes(p));
+              if (match) {
+                selected = match;
+                break;
+              }
+            }
+            
+            // Fallback to first available chat model
+            if (!selected) selected = chatModels[0];
+            
+            CONFIG.localLLM.model = selected;
+            console.log(`[Hippocampus] Auto-selected model: ${selected}`);
+            
+            // Update mode display immediately if waiting
+            if (currentLLMMode === 'Regex') currentLLMMode = selected;
+          }
+        } catch (e) {
+          // JSON parse failed, keep 'auto'
+        }
+      }
+      
+      return true;
+    } else {
+      ollamaAvailable = false;
+      return false;
+    }
   } catch (e) {
     ollamaAvailable = false;
     return false;
@@ -1319,6 +1389,297 @@ async function searchMemories(query: string, projectId: string, limit: number = 
   return searchMemoriesInternal(query, projectId, limit, null, false);
 }
 
+// === V5.5.0 启动唤醒与智能检索 ===
+
+// 估算 Token 数量（简易版：中文约 0.5 token/字，英文约 0.25 token/字）
+function estimateTokens(text: string): number {
+  const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const otherChars = text.length - chineseChars;
+  return Math.ceil(chineseChars * 0.7 + otherChars * 0.3);
+}
+
+// 获取启动唤醒记忆（核心记忆 + 最近 24h）
+async function getStartupMemories(projectId: string): Promise<any[]> {
+  if (!CONFIG.startupRecall.enabled) return [];
+  
+  const database = await initDB();
+  const now = Date.now();
+  const lookbackMs = CONFIG.startupRecall.lookbackHours * 60 * 60 * 1000;
+  const cutoffTime = now - lookbackMs;
+  
+  // 1. 获取核心记忆（高重要性，不限项目）
+  const coreMemories = database.prepare(`
+    SELECT *, 'core' as recall_type FROM memories 
+    WHERE status = 'active' 
+    AND importance >= ?
+    ORDER BY importance DESC, access_count DESC
+    LIMIT 20
+  `).all(CONFIG.startupRecall.minImportance);
+  
+  // 2. 获取最近 24h 的记忆（包括所有项目，因为用户可能在不同目录工作）
+  const recentMemories = database.prepare(`
+    SELECT *, 'recent' as recall_type FROM memories 
+    WHERE status = 'active' 
+    AND created_at >= ?
+    ORDER BY created_at DESC
+    LIMIT 50
+  `).all(cutoffTime);
+  
+  // 3. 合并去重
+  const seen = new Set<string>();
+  const combined: any[] = [];
+  
+  // 核心记忆优先
+  for (const mem of coreMemories) {
+    if (!seen.has(mem.id)) {
+      seen.add(mem.id);
+      combined.push(mem);
+    }
+  }
+  
+  // 然后是近期记忆
+  for (const mem of recentMemories) {
+    if (!seen.has(mem.id)) {
+      seen.add(mem.id);
+      combined.push(mem);
+    }
+  }
+  
+  // 4. 应用硬限制
+  return combined.slice(0, CONFIG.startupRecall.maxMemories);
+}
+
+// 用本地 LLM 压缩启动记忆为摘要
+async function summarizeStartupMemoriesWithLLM(memories: any[]): Promise<string | null> {
+  if (!CONFIG.localLLM.enabled || !CONFIG.startupRecall.useLLMSummary) return null;
+  
+  const isAvailable = await checkOllamaAvailable();
+  if (!isAvailable) return null;
+  
+  try {
+    // 格式化记忆列表
+    const memoryList = memories.map((m, i) => {
+      const typeIcon = m.type === 'rule' ? '📜' : (m.type === 'event' ? '📅' : '💡');
+      const recallType = m.recall_type === 'core' ? '[核心]' : '[近期]';
+      return `${i + 1}. ${typeIcon} ${recallType} ${m.content}`;
+    }).join('\n');
+    
+    const prompt = `你是一个记忆整理助手。请将以下记忆压缩成一段简洁的"晨报摘要"，保留最重要的信息。
+
+## 原始记忆列表
+${memoryList}
+
+## 要求
+1. 用简洁的语言概括核心信息
+2. 保留用户的偏好规则和重要事件
+3. 输出长度控制在 300 字以内
+4. 使用用户的语言（中文/英文）
+
+## 输出格式
+直接输出摘要文本，不要加任何前缀或解释。`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONFIG.localLLM.timeout * 2); // 给压缩任务更多时间
+    
+    const response = await fetch(`${CONFIG.localLLM.baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: CONFIG.localLLM.model,
+        prompt: prompt,
+        stream: false,
+        options: {
+          temperature: 0,
+          num_predict: CONFIG.startupRecall.summaryMaxTokens,
+        }
+      }),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const summary = data.response?.trim();
+    
+    return summary || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// V5.5.0 用本地 LLM 增强查询（理解短消息的真实意图）
+async function enhanceQueryWithLLM(
+  userMessage: string,
+  recentHistory: Array<{role: string, content: string}>
+): Promise<string | null> {
+  if (!CONFIG.localLLM.enabled || !CONFIG.ragSearch.queryEnhancement) return null;
+  
+  const isAvailable = await checkOllamaAvailable();
+  if (!isAvailable) return null;
+  
+  try {
+    // 格式化最近的对话历史
+    const historyText = recentHistory.slice(-6).map(msg => {
+      const role = msg.role === 'user' ? '用户' : '助手';
+      // 截断太长的消息
+      const content = msg.content.length > 200 ? msg.content.substring(0, 200) + '...' : msg.content;
+      return `${role}: ${content}`;
+    }).join('\n');
+    
+    const prompt = `分析用户的最新消息，结合对话上下文，提取检索关键词。
+
+## 对话历史
+${historyText}
+
+## 用户最新消息
+${userMessage}
+
+## 任务
+1. 理解用户真正想问/说的是什么
+2. 提取 3-5 个用于检索记忆库的关键词
+3. 关键词应该覆盖主题、技术栈、操作类型等
+
+## 输出格式（直接输出，不要解释）
+关键词1 关键词2 关键词3`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3秒超时，保持快速
+    
+    const response = await fetch(`${CONFIG.localLLM.baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: CONFIG.localLLM.model,
+        prompt: prompt,
+        stream: false,
+        options: {
+          temperature: 0,
+          num_predict: 50, // 只需要几个关键词
+        }
+      }),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const keywords = data.response?.trim();
+    
+    if (keywords && keywords.length > 0 && keywords.length < 200) {
+      console.log(`[Hippocampus] Query enhanced: "${userMessage}" -> "${keywords}"`);
+      return keywords;
+    }
+    
+    return null;
+  } catch (e) {
+    // 超时或其他错误，静默返回 null
+    return null;
+  }
+}
+
+// 用本地 LLM 对搜索结果进行重排序
+async function rerankMemoriesWithLLM(
+  query: string, 
+  memories: any[], 
+  outputLimit: number = CONFIG.ragSearch.rerankOutputLimit
+): Promise<any[] | null> {
+  if (!CONFIG.localLLM.enabled || !CONFIG.ragSearch.rerankWithLLM) return null;
+  
+  const isAvailable = await checkOllamaAvailable();
+  if (!isAvailable) return null;
+  
+  try {
+    // 格式化记忆列表（带编号）
+    const memoryList = memories.slice(0, 50).map((m, i) => {
+      return `[${i}] ${m.content}`;
+    }).join('\n');
+    
+    const prompt = `你是一个记忆检索助手。根据用户的问题，从以下记忆列表中选出最相关的 ${outputLimit} 条。
+
+## 用户问题
+${query}
+
+## 记忆列表
+${memoryList}
+
+## 要求
+1. 选择与问题最相关的记忆
+2. 按相关度从高到低排序
+3. 只输出编号，用逗号分隔
+4. 例如：0,3,7,2,5
+
+## 输出
+直接输出编号列表：`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONFIG.localLLM.timeout);
+    
+    const response = await fetch(`${CONFIG.localLLM.baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: CONFIG.localLLM.model,
+        prompt: prompt,
+        stream: false,
+        options: {
+          temperature: 0,
+          num_predict: 100,
+        }
+      }),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const text = data.response?.trim() || '';
+    
+    // 解析编号列表
+    const indices = text.match(/\d+/g)?.map(Number) || [];
+    const validIndices = indices.filter(i => i >= 0 && i < memories.length);
+    
+    if (validIndices.length === 0) return null;
+    
+    // 按 LLM 排序返回记忆
+    const reranked = validIndices.slice(0, outputLimit).map(i => memories[i]);
+    return reranked;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 格式化记忆为注入文本（带 Token 限制）
+function formatMemoriesForInjection(
+  memories: any[], 
+  maxTokens: number = CONFIG.startupRecall.maxTokens
+): string {
+  if (memories.length === 0) return '';
+  
+  let totalTokens = 0;
+  const lines: string[] = [];
+  
+  for (const m of memories) {
+    const typeMark = m.type === 'rule' ? 'RULE' : 'INFO';
+    const impMark = (m.importance || 0) > 5 ? '★' : '';
+    const coreMark = m.recall_type === 'core' ? ' [CORE]' : '';
+    const line = `- [${typeMark}${impMark}] ${m.content}${coreMark} (ID:${m.id})`;
+    
+    const lineTokens = estimateTokens(line);
+    if (totalTokens + lineTokens > maxTokens) break;
+    
+    totalTokens += lineTokens;
+    lines.push(line);
+  }
+  
+  return lines.join('\n');
+}
+
 // === 睡眠整理 ===
 interface ConsolidationResult {
   merged: number;
@@ -1469,6 +1830,10 @@ export default function (pi: any) {
   // 当前会话的对话缓存（内存中）
   let sessionBuffer: Array<{role: string, content: string}> = [];
   let currentProjectId: string = "";
+  
+  // V5.5.0 启动唤醒缓存
+  let startupRecallContent: string = "";
+  let startupRecallReady: boolean = false;  // 标记启动唤醒是否完成
   
   // Tool 1: Save Memory
   pi.registerTool({
@@ -1629,7 +1994,7 @@ export default function (pi: any) {
     }
   });
 
-  // Tool 6: Memory Status (V5.4.1 Enhanced)
+  // Tool 6: Memory Status (V5.5.0 Enhanced)
   pi.registerTool({
     name: "memory_status",
     description: "查看记忆系统状态：本地 LLM 可用性、记忆统计、配置信息。",
@@ -1654,7 +2019,7 @@ export default function (pi: any) {
       // 检测本地 LLM
       const ollamaStatus = await checkOllamaAvailable();
       
-      let status = `## 🧠 Hippocampus V5.4.1 Status\n\n`;
+      let status = `## 🧠 Hippocampus V5.6.0 Status\n\n`;
       
       // 本地 LLM 状态
       status += `### 🤖 Local LLM Analyzer\n`;
@@ -1693,6 +2058,26 @@ export default function (pi: any) {
       status += `| Synapse Links 🔗 | ${linkCount.count} |\n`;
       status += `| Auto-Encoded | ${autoEncoded.count} |\n`;
       
+      // V5.6.0 启动唤醒配置
+      status += `\n### 🌅 Startup Recall (V5.6.0)\n`;
+      status += `| Setting | Value |\n|---------|-------|\n`;
+      status += `| Enabled | ${CONFIG.startupRecall.enabled ? '✅' : '❌'} |\n`;
+      status += `| Lookback Hours | ${CONFIG.startupRecall.lookbackHours}h |\n`;
+      status += `| Min Importance | ${CONFIG.startupRecall.minImportance} |\n`;
+      status += `| Max Tokens | ${CONFIG.startupRecall.maxTokens} |\n`;
+      status += `| Max Memories | ${CONFIG.startupRecall.maxMemories} |\n`;
+      status += `| LLM Summary | ${CONFIG.startupRecall.useLLMSummary ? '✅' : '❌'} |\n`;
+      
+      // V5.6.0 智能检索配置
+      status += `\n### 🔍 RAG Search (V5.6.0)\n`;
+      status += `| Setting | Value |\n|---------|-------|\n`;
+      status += `| Enabled | ${CONFIG.ragSearch.enabled ? '✅' : '❌'} |\n`;
+      status += `| Vector Search Limit | ${CONFIG.ragSearch.vectorSearchLimit} |\n`;
+      status += `| LLM Rerank | ${CONFIG.ragSearch.rerankWithLLM ? '✅' : '❌'} |\n`;
+      status += `| Rerank Output | ${CONFIG.ragSearch.rerankOutputLimit} |\n`;
+      status += `| Hard Limit (No LLM) | ${CONFIG.ragSearch.hardLimitNoLLM} |\n`;
+      status += `| Include Global Core | ${CONFIG.ragSearch.includeGlobalCore ? '✅' : '❌'} |\n`;
+      
       // 配置信息
       status += `\n### ⚙️ Core Configuration\n`;
       status += `| Setting | Value |\n|---------|-------|\n`;
@@ -1729,18 +2114,20 @@ export default function (pi: any) {
       sessionBuffer.push({ role: 'user', content: prompt });
     }
     
-    // Auto-Recall
-    let contextSection = "";
-    // 杜总指示：移除长度限制，并强制混入核心记忆
-    const searchQueries = [];
-    if (prompt && prompt.trim().length > 0) {
-      searchQueries.push(prompt);
+    // V5.5.0 等待启动唤醒完成（最多等待 2 秒，因为现在是非阻塞设计，应该很快）
+    if (!startupRecallReady) {
+      const startWait = Date.now();
+      while (!startupRecallReady && (Date.now() - startWait) < 2000) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
     }
     
-    // 1. 搜索与当前 Prompt 相关的记忆
-    let promptResults: any[] = [];
-    if (searchQueries.length > 0) {
+    // V5.5.0 智能 RAG 检索
+    let contextSection = "";
+    
+    if (CONFIG.ragSearch.enabled && prompt && prompt.trim().length > 0) {
       try {
+        // 检测是否有跨项目搜索需求
         let targetProject: string | null = null;
         const projectMatch = prompt.match(/在\s*(\S+?)\s*(项目|那边|里面)/i);
         if (projectMatch) {
@@ -1748,49 +2135,93 @@ export default function (pi: any) {
           if (found) targetProject = found.id;
         }
         
-        promptResults = await searchMemoriesInternal(prompt, projectId, 5, targetProject, false);
+        // V5.5.0 查询增强：对短消息用 LLM 理解真实意图
+        let searchQuery = prompt;
+        const ollamaOnline = await checkOllamaAvailable();
+        
+        if (ollamaOnline && CONFIG.ragSearch.queryEnhancement && 
+            prompt.trim().length < CONFIG.ragSearch.queryEnhancementThreshold) {
+          // 短消息，需要 LLM 帮助理解
+          const enhanced = await enhanceQueryWithLLM(prompt, sessionBuffer);
+          if (enhanced) {
+            searchQuery = enhanced;
+          }
+        }
+        
+        // 第一阶段：向量搜索 Top N
+        const vectorResults = await searchMemoriesInternal(
+          searchQuery, 
+          projectId, 
+          CONFIG.ragSearch.vectorSearchLimit,  // 默认 100
+          targetProject, 
+          false
+        );
+        
+        let finalResults: any[] = [];
+        
+        // 第二阶段：LLM Rerank（如果可用且开启）
+        if (ollamaOnline && CONFIG.ragSearch.rerankWithLLM && vectorResults.length > CONFIG.ragSearch.rerankOutputLimit) {
+          const reranked = await rerankMemoriesWithLLM(prompt, vectorResults, CONFIG.ragSearch.rerankOutputLimit);
+          if (reranked && reranked.length > 0) {
+            finalResults = reranked;
+          }
+        }
+        
+        // 如果 LLM Rerank 失败或不可用，使用硬截断
+        if (finalResults.length === 0) {
+          finalResults = vectorResults.slice(0, CONFIG.ragSearch.hardLimitNoLLM);
+        }
+        
+        // 强制混入全局核心记忆
+        if (CONFIG.ragSearch.includeGlobalCore) {
+          try {
+            const db = await initDB();
+            const globalCoreResults = db.prepare(`
+              SELECT * FROM memories 
+              WHERE scope = 'global' AND importance >= ? AND status = 'active'
+              ORDER BY importance DESC, access_count DESC 
+              LIMIT ?
+            `).all(CONFIG.ragSearch.globalCoreMinImportance, CONFIG.ragSearch.globalCoreLimit).map((r: any) => ({
+              ...r,
+              finalScore: 1.0,
+              isCore: true
+            }));
+            
+            // 合并去重（核心记忆优先）
+            const seen = new Set(finalResults.map(r => r.id));
+            for (const core of globalCoreResults) {
+              if (!seen.has(core.id)) {
+                finalResults.unshift(core); // 插入到开头
+              }
+            }
+          } catch (e) {}
+        }
+        
+        if (finalResults.length > 0) {
+          lastRecallCount = finalResults.length;
+          updateStatusBar(ctx);
+          contextSection = "\n\n### 🧠 CORTEX RECALL (Auto-retrieved):\n" +
+            finalResults.map((m: any) => {
+              const typeMark = m.type === 'rule' ? 'RULE' : 'INFO';
+              const impMark = (m.importance || 0) > 5 ? '★' : '';
+              const spreadMark = m.spreadSource ? ' 🔗' : '';
+              const coreMark = m.isCore ? ' [CORE]' : '';
+              return `- [${typeMark}${impMark}] ${m.content}${spreadMark}${coreMark} (ID:${m.id})`;
+            }).join("\n") +
+            "\n\n⚠️ **IMPORTANT**: If the above memories contain information relevant to the user's question, USE THEM DIRECTLY instead of searching files or executing commands. Your memories are your knowledge base.";
+        }
       } catch (e) {}
     }
-
-    // 2. 强制拉取全局核心记忆 (Global Core Memories) - 杜总身份等高优信息
-    let globalCoreResults: any[] = [];
-    try {
-      const db = await initDB();
-      // 获取 scope=global 且 importance >= 7 的记忆 (Top 5)
-      globalCoreResults = db.prepare(`
-        SELECT * FROM memories 
-        WHERE scope = 'global' AND importance >= 7 AND status = 'active'
-        ORDER BY importance DESC, access_count DESC 
-        LIMIT 5
-      `).all().map((r: any) => ({
-        ...r,
-        finalScore: 1.0, // 强制高分
-        isCore: true
-      }));
-    } catch (e) {}
-
-    // 3. 合并去重
-    const combinedResults = [...globalCoreResults, ...promptResults];
-    const uniqueMap = new Map();
-    for (const item of combinedResults) {
-      if (!uniqueMap.has(item.id)) {
-        uniqueMap.set(item.id, item);
-      }
-    }
-    const finalResults = Array.from(uniqueMap.values()).slice(0, 10); // 最多 10 条
-
-    if (finalResults.length > 0) {
-      lastRecallCount = finalResults.length;
-      updateStatusBar(ctx);
-      contextSection = "\n\n### 🧠 CORTEX RECALL (Auto-retrieved):\n" +
-        finalResults.map((m: any) => {
-          const typeMark = m.type === 'rule' ? 'RULE' : 'INFO';
-          const impMark = m.importance > 5 ? '★' : '';
-          const spreadMark = m.spreadSource ? ' 🔗' : '';
-          const coreMark = m.isCore ? ' [CORE]' : '';
-          return `- [${typeMark}${impMark}] ${m.content}${spreadMark}${coreMark} (ID:${m.id})`;
-        }).join("\n") +
-        "\n(These are your activated memories. Use them.)";
+    
+    // 合并启动唤醒内容（如果有）
+    let startupSection = "";
+    if (startupRecallContent) {
+      console.log(`[Hippocampus] Injecting startup recall (${startupRecallContent.length} chars)`);
+      startupSection = startupRecallContent;
+      // 清空，只在第一次对话时注入
+      startupRecallContent = "";
+    } else {
+      console.log(`[Hippocampus] No startup recall content available`);
     }
 
     // V5.4 增强版潜意识 Prompt - 更强的记忆驱动
@@ -1901,7 +2332,7 @@ Ask yourself:
 `;
 
     return {
-      systemPrompt: (event.systemPrompt || "") + subconscious + contextSection
+      systemPrompt: (event.systemPrompt || "") + subconscious + startupSection + contextSection
     };
   });
 
@@ -1928,6 +2359,14 @@ Ask yourself:
         }
         
         if (assistantText) {
+          // FIX: 过滤掉系统注入的 Historical context 警告，防止污染记忆和干扰 LLM 分析
+          // 这些是 Pi 框架注入的纠错提示，不应被视为助手的真实回复
+          if (assistantText.includes('[Historical context:') || 
+              assistantText.includes('Do not mimic this format') ||
+              assistantText.startsWith('[Historical context:')) {
+            return;
+          }
+
           sessionBuffer.push({ role: 'assistant', content: assistantText });
         }
         
@@ -2001,13 +2440,22 @@ Ask yourself:
     lastOllamaStatus = null; // 重置状态追踪
     lastRecallCount = 0; // 重置召回计数
     uiContext = ctx; // 保存 UI 引用
+    startupRecallContent = ""; // 重置启动唤醒内容
+    startupRecallReady = false; // 重置启动唤醒状态
     
-    const VERSION = "v5.5.0";
+    const VERSION = "v5.6.0";
+    const projectId = getProjectHash(ctx.cwd);
+    currentProjectId = projectId;
+    
+    // 注册项目
+    await registerProject(projectId, ctx.cwd);
 
     // 检测本地 LLM 可用性
+    let ollamaOnline = false;
     if (CONFIG.localLLM.enabled) {
       const available = await checkOllamaAvailable(true);
       lastOllamaStatus = available; // 记录初始状态
+      ollamaOnline = available;
       
       if (available) {
         currentLLMMode = CONFIG.localLLM.model;
@@ -2021,6 +2469,61 @@ Ask yourself:
       ctx.ui.notify(`🧠 Hippocampus ${VERSION} (Regex)`, "info");
     }
     updateStatusBar(ctx);
+    
+    // V5.5.0 启动唤醒：加载核心记忆 + 最近 24h 记忆（非阻塞设计）
+    if (CONFIG.startupRecall.enabled) {
+      try {
+        const startupMemories = await getStartupMemories(projectId);
+        console.log(`[Hippocampus] Startup recall: ${startupMemories.length} memories loaded`);
+        
+        if (startupMemories.length > 0) {
+          lastRecallCount = startupMemories.length;
+          updateStatusBar(ctx);
+          
+          // 第一步：立即用原始格式设置（快速，不阻塞）
+          const formatted = formatMemoriesForInjection(startupMemories, CONFIG.startupRecall.maxTokens);
+          if (formatted) {
+            startupRecallContent = `\n### 🌅 STARTUP RECALL (Core + Last ${CONFIG.startupRecall.lookbackHours}h)\n${formatted}\n`;
+          }
+          
+          // 标记启动唤醒已完成（原始格式已就绪）
+          startupRecallReady = true;
+          console.log(`[Hippocampus] Startup ready (raw format). Content length: ${startupRecallContent.length}`);
+          
+          // 第二步：后台异步执行 LLM 摘要（不阻塞）
+          if (ollamaOnline && CONFIG.startupRecall.useLLMSummary) {
+            // 使用 setImmediate 或 setTimeout 让出主线程
+            setTimeout(async () => {
+              try {
+                console.log(`[Hippocampus] Background LLM summary starting...`);
+                const summary = await summarizeStartupMemoriesWithLLM(startupMemories);
+                if (summary) {
+                  // 只有当 startupRecallContent 还没被消费时才替换
+                  if (startupRecallContent && startupRecallContent.includes('STARTUP RECALL')) {
+                    startupRecallContent = `\n### 🌅 STARTUP BRIEFING (LLM Summary)\n${summary}\n`;
+                    console.log(`[Hippocampus] Background LLM summary complete. New length: ${startupRecallContent.length}`);
+                  }
+                }
+              } catch (e) {
+                console.log(`[Hippocampus] Background LLM summary failed, using raw format`);
+              }
+            }, 0);
+          }
+        } else {
+          // 没有记忆，直接标记完成
+          startupRecallReady = true;
+        }
+      } catch (e) {
+        // 静默失败，不影响启动
+        console.error("[Hippocampus] Startup recall error:", e);
+        startupRecallReady = true;
+      }
+    } else {
+      // 未启用启动唤醒，直接标记完成
+      startupRecallReady = true;
+    }
+    
+    console.log(`[Hippocampus] Session start complete`);
   });
 
   // session_shutdown: 自动整理

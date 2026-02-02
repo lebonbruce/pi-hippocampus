@@ -5,7 +5,7 @@
 **给 AI 装个海马体，治好它的健忘症。**
 
 [![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
-[![Version](https://img.shields.io/badge/version-5.4.1-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
+[![Version](https://img.shields.io/badge/version-5.6.0-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [**English**](README.md) | [**简体中文**](README_ZH.md) | [**日本語**](README_JA.md)
@@ -143,7 +143,7 @@ ollama serve
 
 重启 pi，如果看到这个提示就说明成功了：
 ```
-🧠 Hippocampus V5.4.1 Online (Local LLM: qwen3:8b)
+🧠 Hippocampus V5.6.0 Online (Local LLM: qwen2.5:7b)
 ```
 
 如果看到 `Regex Mode`，说明 Ollama 没检测到，但插件仍然可以正常工作。

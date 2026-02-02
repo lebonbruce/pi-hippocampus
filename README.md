@@ -5,7 +5,7 @@
 **Give your AI a hippocampus. Cure its amnesia.**
 
 [![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
-[![Version](https://img.shields.io/badge/version-5.4.1-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
+[![Version](https://img.shields.io/badge/version-5.6.0-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [**English**](README.md) | [**简体中文**](README_ZH.md) | [**日本語**](README_JA.md)
@@ -60,6 +60,21 @@ That bug I hit in Project A? When I encounter something similar in Project B, th
 Because it doesn't just search the current project. It looks at semantic similarity and importance to surface those "deeply-ingrained" memories.
 
 Feels less like database queries, more like AI having intuition.
+
+### 🌅 V5.6.0: Startup Recall & Smart RAG (NEW!)
+
+**Startup Recall** - When you open a new session, the AI now automatically loads:
+- **Core memories** (importance ≥ 8): Your identity, rules, preferences
+- **Recent memories** (last 24 hours): What you were working on yesterday
+
+With local Ollama, it even generates a "morning briefing" summary!
+
+**Smart RAG with Rerank** - When you ask a question:
+1. Vector search retrieves Top 100 relevant memories
+2. Local LLM picks the most relevant 10 (if Ollama is available)
+3. Falls back to Top 20 if no local LLM
+
+**Fully Configurable** - All thresholds are adjustable for users with/without Ollama.
 
 ---
 
@@ -143,7 +158,7 @@ ollama serve
 
 Restart pi. If you see this, you're good:
 ```
-🧠 Hippocampus V5.4.1 Online (Local LLM: qwen3:8b)
+🧠 Hippocampus V5.6.0 Online (Local LLM: qwen2.5:7b)
 ```
 
 If you see `Regex Mode`, Ollama wasn't detected—but the plugin still works.
@@ -182,6 +197,35 @@ const CONFIG = {
 
 > 💡 **Tip**: As your memory database grows, you can increase `maxMemories` to allow AI to retrieve more relevant memories. Be aware that more memories consume more tokens.
 
+### V5.6.0 Startup Recall Settings
+
+```typescript
+startupRecall: {
+  enabled: true,                    // Enable startup recall
+  lookbackHours: 24,                // How far back to look (hours)
+  minImportance: 8,                 // Min importance for core memories
+  maxTokens: 8000,                  // Token limit (no LLM fallback)
+  maxMemories: 50,                  // Max memories to load
+  useLLMSummary: true,              // Use LLM to generate summary
+  summaryMaxTokens: 500,            // Summary token limit
+}
+```
+
+### V5.6.0 RAG Search Settings
+
+```typescript
+ragSearch: {
+  enabled: true,                    // Enable smart RAG
+  vectorSearchLimit: 100,           // First-stage retrieval count
+  rerankWithLLM: true,              // Use LLM for reranking
+  rerankOutputLimit: 10,            // Final output count (with LLM)
+  hardLimitNoLLM: 20,               // Final output count (no LLM)
+  includeGlobalCore: true,          // Always include core memories
+  globalCoreMinImportance: 7,       // Core memory threshold
+  globalCoreLimit: 5,               // Max core memories to inject
+}
+```
+
 ### Local LLM Settings
 
 ```typescript
@@ -212,15 +256,28 @@ localLLM: {
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Hippocampus V5.4.1                       │
+│                    Hippocampus V5.6.0                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
+│  Session Start                                              │
+│      │                                                      │
+│      ▼                                                      │
+│  ┌─────────────────────────────────────────┐               │
+│  │ session_start (NEW!)                     │               │
+│  │  • Load core memories (importance ≥ 8)   │               │
+│  │  • Load recent 24h memories              │               │
+│  │  • LLM generates summary (if available)  │               │
+│  └─────────────────────────────────────────┘               │
+│      │                                                      │
+│      ▼                                                      │
 │  User Input                                                 │
 │      │                                                      │
 │      ▼                                                      │
 │  ┌─────────────────────────────────────────┐               │
-│  │ before_agent_start                       │               │
-│  │  • Vector search for relevant memories   │               │
+│  │ before_agent_start (ENHANCED!)           │               │
+│  │  • Vector search Top 100 memories        │               │
+│  │  • LLM reranks to Top 10 (if available)  │               │
+│  │  • Fallback: Top 20 by similarity        │               │
 │  │  • Inject into System Prompt             │               │
 │  └─────────────────────────────────────────┘               │
 │      │                                                      │
