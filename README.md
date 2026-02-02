@@ -2,98 +2,328 @@
 
 # 🧠 pi-hippocampus
 
-**Give your AI a brain, literally.**
+**Give your AI a hippocampus. Cure its amnesia.**
 
 [![Pi Agent Extension](https://img.shields.io/badge/Pi%20Agent-Extension-blueviolet)](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
-[![Version](https://img.shields.io/badge/version-4.2.2-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
+[![Version](https://img.shields.io/badge/version-5.3.1-blue)](https://github.com/lebonbruce/pi-hippocampus/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-[**English**](README.md) | [**简体中文**](README_ZH.md)
+[**English**](README.md) | [**简体中文**](README_ZH.md) | [**日本語**](README_JA.md)
 
 </div>
 
 ---
 
-Let's be real: AI coding agents are amazing, but they have the memory of a goldfish.
+## Why I Built This
 
-Every time I close a session or switch projects, it forgets my coding style, my API keys, and that annoying bug I fixed yesterday. I got tired of repeating myself.
+I've been using AI coding tools (Cursor, Windsurf, Claude) for a while. They're powerful, but there's one thing that drives me crazy: **they have the memory of a goldfish**.
 
-So I built **pi-hippocampus**. 
-It's not just a database; it's a **biological memory implant** for **[pi-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)**.
+Close the session? Forgotten. Switch projects? Forgotten. That API gotcha I explained yesterday? Forgotten.
 
----
+I got tired of repeating myself.
 
-## ✨ Why this is actually good
+So I built this extension for **[pi-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)**. The goal is simple: **make AI actually remember stuff**.
 
-### 1. It's Invisible (Zero Friction)
-You don't need to learn new commands.
-Just chat naturally. The extension listens in the background. When you say something important (like "Always use Python 3.10"), it catches it, encodes it, and saves it.
-It just works.
-
-### 2. It Dreams (Consolidation) 💤
-This is the killer feature.
-Just like humans sleep to organize memories, this plugin runs a **Consolidation Process** in the background.
-- It scans your recent fragmented conversations.
-- It summarizes them into solid Rules.
-- **Best part:** It does this locally using logic and vector math. **It costs ZERO LLM tokens.** Your database gets smarter and cleaner for free.
-
-### 3. Cross-Project Intuition
-Most agents keep memory siloed per project.
-But if I fixed a specific `CORS` error in Project A, I want that knowledge when I hit the same error in Project B.
-Hippocampus uses **"Permeable Recall"**. If a memory is important enough, it pierces through the project boundary. It feels like your agent actually has intuition.
+Not the dumb way of dumping conversations into files (that's just noise). But like a human brain—with filtering, consolidation, forgetting, and association.
 
 ---
 
-## ⚡️ Install
+## ✨ Core Features
 
-**Choose your OS below.**
+### 🔇 Completely Invisible
 
-### 🍎 Mac / Linux (Bash/Zsh)
+Install it and forget about it. Seriously.
+
+Just chat normally. When you say "don't use var anymore" or "the database password changed", it figures out that's important and quietly saves it.
+
+**Invisible is the best UX.**
+
+### 🧠 Works Like a Brain
+
+- **Memory Types**: Distinguishes Facts, Rules, and Events
+- **Forgetting Curve**: Unimportant stuff naturally fades over time
+- **Gets Stronger with Use**: Frequently recalled memories gain weight (LTP)
+- **Associative Recall**: Searches spread along connection links to find related memories
+
+### 💤 Sleep Consolidation (It Actually Tidies Up)
+
+Like how humans need sleep to consolidate memories:
+- Automatically triggers "memory consolidation" when you close a session
+- Similar fragments get merged into cleaner facts
+- High-frequency memories get promoted
+- **Zero LLM tokens consumed**—pure local computation
+
+### 🌐 Cross-Project "Intuition"
+
+That bug I hit in Project A? When I encounter something similar in Project B, the AI actually warns me.
+
+Because it doesn't just search the current project. It looks at semantic similarity and importance to surface those "deeply-ingrained" memories.
+
+Feels less like database queries, more like AI having intuition.
+
+---
+
+## 🚀 V5.3: Local LLM Analysis
+
+### Use Local Models to Decide What to Remember
+
+If you have Ollama, the plugin uses a local 7B model to analyze each conversation:
+- Is this worth remembering?
+- What type? (rule/fact/event)
+- How important?
+
+**Way smarter than regex, and completely free.**
+
+### Graceful Fallback
+
+No Ollama? No problem. Automatically falls back to regex matching. Everything still works.
+
+---
+
+## ⚡️ Quick Install
+
+### 🍎 Mac / Linux
+
 ```bash
-mkdir -p ~/.pi/agent/extensions && cd ~/.pi/agent/extensions && rm -rf pi-hippocampus && git clone https://github.com/lebonbruce/pi-hippocampus.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ Done! Restart your agent."
+mkdir -p ~/.pi/agent/extensions && \
+cd ~/.pi/agent/extensions && \
+rm -rf pi-hippocampus && \
+git clone https://github.com/lebonbruce/pi-hippocampus.git && \
+cd pi-hippocampus && \
+npm install && \
+echo "✅ Done! Restart pi to activate."
 ```
 
 ### 🪟 Windows (PowerShell)
-> **Note**: Open "Windows PowerShell" to run this.
 
 ```powershell
-$p="$env:USERPROFILE\.pi\agent\extensions"; New-Item -ItemType Directory -Force -Path $p; cd $p; Remove-Item pi-hippocampus -Recurse -Force -ErrorAction SilentlyContinue; git clone https://github.com/lebonbruce/pi-hippocampus.git pi-hippocampus; cd pi-hippocampus; npm install; Write-Host "✅ Done! Restart your agent."
+$p="$env:USERPROFILE\.pi\agent\extensions"
+New-Item -ItemType Directory -Force -Path $p
+cd $p
+Remove-Item pi-hippocampus -Recurse -Force -ErrorAction SilentlyContinue
+git clone https://github.com/lebonbruce/pi-hippocampus.git
+cd pi-hippocampus
+npm install
+Write-Host "✅ Done! Restart pi to activate."
 ```
 
-### 🪟 Windows (Command Prompt / cmd.exe)
-> **Note**: If you see `C:\Users\Name>`, use this.
+### 🪟 Windows (CMD)
 
 ```cmd
-cd /d "%USERPROFILE%" && if not exist ".pi\agent\extensions" mkdir ".pi\agent\extensions" && cd ".pi\agent\extensions" && if exist "pi-hippocampus" rmdir /s /q pi-hippocampus && git clone https://github.com/lebonbruce/pi-hippocampus.git pi-hippocampus && cd pi-hippocampus && npm install && echo "✅ Done! Restart your agent."
+cd /d "%USERPROFILE%" && ^
+if not exist ".pi\agent\extensions" mkdir ".pi\agent\extensions" && ^
+cd ".pi\agent\extensions" && ^
+if exist "pi-hippocampus" rmdir /s /q pi-hippocampus && ^
+git clone https://github.com/lebonbruce/pi-hippocampus.git && ^
+cd pi-hippocampus && ^
+npm install && ^
+echo Done! Restart pi to activate.
 ```
 
 ---
 
-## 🧩 How it works (No Math, just Logic)
+## 🤖 Setting Up Local LLM (Optional but Recommended)
 
-I won't bore you with complex formulas. Here is the gist:
+Local LLM makes memory decisions much smarter. If you skip this, the plugin falls back to regex—still works, just less intelligent.
 
-Your memories live in a high-dimensional vector space (`~/.pi-hippocampus/`).
+### 1. Install Ollama
 
-1.  **Bio-Mimetic Tags**: Every memory is tagged as a **Fact**, **Rule**, or **Event**. Rules are sticky; Events fade away over time (unless you recall them often).
-2.  **Survival of the Fittest**: Memories compete for attention.
-    - Important stuff (High weights) stays.
-    - Trivial chatter follows the **Ebbinghaus Forgetting Curve** and disappears.
-3.  **Synaptic Links**: If you mention "Login" and "Database" together often, the system physically links these memories. Recalling one pulls up the other.
+**Mac**
+```bash
+brew install ollama
+```
+
+**Linux**
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+**Windows**
+
+Download from [ollama.com/download](https://ollama.com/download)
+
+### 2. Pull a Model
+
+```bash
+# Recommended: Qwen2.5 7B (great for both English and Chinese)
+ollama pull qwen2.5:7b
+
+# Or smaller/faster
+ollama pull qwen2.5:3b
+
+# Or for English-only
+ollama pull llama3.1:8b
+```
+
+### 3. Start the Service
+
+Ollama usually auto-starts. If not:
+```bash
+ollama serve
+```
+
+### 4. Verify
+
+Restart pi. If you see this, you're good:
+```
+🧠 Hippocampus V5.3 Online (Local LLM: qwen2.5:7b)
+```
+
+If you see `Regex Mode`, Ollama wasn't detected—but the plugin still works.
 
 ---
 
-## 🤝 Wrap up
+## 🛠️ Available Tools
 
-I'm just an indie dev sharing a tool that solved a huge pain for me.
-It's local, private, and free.
+After installation, the AI can use these tools:
 
-If you find a bug or have an idea, drop it in the Issues.
+| Tool | Description |
+|------|-------------|
+| `save_memory` | Save a memory (with type, importance, scope) |
+| `search_memory` | Search memories (supports cross-project) |
+| `connect_memories` | Link related memories |
+| `consolidate_memories` | Manually trigger memory consolidation |
+| `list_projects` | List all known projects |
+| `memory_status` | View system status and config |
 
-> **GitHub Issues**: [Click here](https://github.com/lebonbruce/pi-hippocampus/issues)
+---
+
+## ⚙️ Advanced Configuration
+
+To customize, edit the `CONFIG` object in `index.ts`.
+
+### Local LLM Settings
+
+```typescript
+localLLM: {
+  enabled: true,                    // Enable/disable local LLM
+  baseUrl: 'http://localhost:11434',// Ollama endpoint
+  model: 'qwen2.5:7b',              // Model name
+  timeout: 10000,                   // Timeout in ms
+  fallbackToRegex: true,            // Fall back if unavailable
+  
+  temperature: 0,                   // 0 = deterministic
+  minImportanceToSave: 3,           // Skip low-importance items
+  promptStyle: 'concise',           // 'concise' for 7B, 'detailed' for larger
+  language: 'auto',                 // 'auto' | 'zh' | 'en'
+}
+```
+
+### Recommended Models
+
+| Model | VRAM | Speed | Notes |
+|-------|------|-------|-------|
+| `qwen2.5:7b` | ~5GB | ⚡⚡ | **Default. Great all-around.** |
+| `qwen2.5:3b` | ~2GB | ⚡⚡⚡ | For low-spec machines |
+| `llama3.1:8b` | ~5GB | ⚡⚡ | Better for English-only |
+| `phi3:mini` | ~2GB | ⚡⚡⚡ | Fast but less accurate |
+
+---
+
+## 🧩 How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Hippocampus V5.3                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  User Input                                                 │
+│      │                                                      │
+│      ▼                                                      │
+│  ┌─────────────────────────────────────────┐               │
+│  │ before_agent_start                       │               │
+│  │  • Vector search for relevant memories   │               │
+│  │  • Inject into System Prompt             │               │
+│  └─────────────────────────────────────────┘               │
+│      │                                                      │
+│      ▼                                                      │
+│  ┌─────────────────────────────────────────┐               │
+│  │ Main LLM (Claude/GPT/Gemini)             │               │
+│  └─────────────────────────────────────────┘               │
+│      │                                                      │
+│      ▼                                                      │
+│  ┌─────────────────────────────────────────┐               │
+│  │ turn_end                                 │               │
+│  │  • Local Ollama analyzes if worth saving │               │
+│  │  • Or falls back to regex matching       │               │
+│  │  • Saves to vector database              │               │
+│  └─────────────────────────────────────────┘               │
+│      │                                                      │
+│      ▼                                                      │
+│  ┌─────────────────────────────────────────┐               │
+│  │ session_shutdown                         │               │
+│  │  • Auto-consolidate fragment memories    │               │
+│  │  • Merge similar content                 │               │
+│  │  • Build associative links               │               │
+│  └─────────────────────────────────────────┘               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📁 Data Storage
+
+Everything stays local:
+
+```
+~/.pi-hippocampus/
+├── memories.db      # SQLite database (memories + vectors)
+└── .cache/          # Embedding model cache
+```
+
+**Privacy**:
+- Nothing uploads anywhere
+- Embeddings computed locally (Xenova/transformers)
+- Local LLM analysis stays local
+
+---
+
+## 🐛 FAQ
+
+### Q: Nothing happens after install?
+
+Make sure you restarted pi-agent. The extension loads at startup.
+
+### Q: It says "Regex Mode"?
+
+Ollama wasn't detected. Check:
+1. Ollama installed: `ollama --version`
+2. Service running: `ollama serve`
+3. Model downloaded: `ollama list`
+
+Regex Mode still works, just less smart.
+
+### Q: Too many messy memories?
+
+Ask the AI to call `consolidate_memories`. It'll tidy up.
+
+### Q: How to check status?
+
+Ask the AI to call `memory_status`.
+
+### Q: How to reset everything?
+
+Delete `~/.pi-hippocampus/memories.db` and restart pi.
+
+---
+
+## 🤝 About
+
+I'm an indie developer. Built this for myself first.
+
+If you're also tired of AI amnesia, give it a try. All data stays local, no subscriptions, no tracking.
+
+Got issues? Open one. I'll respond when I can.
+
+---
+
+## 📜 License
+
+MIT - Do whatever you want with it.
 
 ---
 
 <div align="center">
-  <sub>Built with ❤️ by a dev for devs.</sub>
+  <sub>Just a tool built by a dev who got tired of repeating himself to AI.</sub>
 </div>

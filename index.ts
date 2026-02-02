@@ -13,9 +13,216 @@ const CACHE_DIR = path.join(GLOBAL_MEMORY_DIR, ".cache");
 const CONFIG = {
   embeddingModel: "Xenova/nomic-embed-text-v1",
   embeddingDimensions: 768,
-  maxDistance: 1.2, // 向量相似度阈值 (sqlite-vec distance)
+  maxDistance: 1.2,
   maxMemories: 10,
-  defaultDecayRate: 0.05, // 每天衰减 5%
+  defaultDecayRate: 0.05,
+  consolidation: {
+    minFragmentsForMerge: 2,
+    similarityThreshold: 0.75,
+    autoPromoteAccessCount: 3,
+    fragmentMaxAgeDays: 7,
+  },
+  context: {
+    recentProjectDays: 7,
+    staleProjectDays: 30,
+    recentProjectFactor: 0.7,
+    staleProjectFactor: 0.3,
+    alienBreakthroughFactor: 0.8,
+  },
+  spreading: {
+    maxHops: 1,
+    minLinkStrength: 0.5,
+    spreadDecay: 0.7,
+  },
+  
+  // V5.3 本地 LLM 分析配置 (Enhanced)
+  localLLM: {
+    enabled: true,                    // 启用本地 LLM 分析
+    provider: 'ollama' as const,      // 目前只支持 ollama
+    baseUrl: 'http://localhost:11434',
+    model: 'qwen2.5:7b',              // 推荐：qwen2.5:7b, llama3.1:8b, mistral:7b, phi3:mini
+    timeout: 10000,                   // 超时时间 (ms)
+    fallbackToRegex: true,            // 如果本地 LLM 不可用，回退到正则匹配
+    maxInputLength: 800,              // 最大输入长度（截断以加速）
+    
+    // 模型参数
+    temperature: 0,                   // 0 = 确定性输出
+    maxTokens: 256,                   // 限制输出长度
+    
+    // 分析阈值
+    minImportanceToSave: 3,           // 重要性低于此值不保存
+    confidenceThreshold: 0.7,         // LLM 置信度阈值（预留）
+    
+    // 输出控制
+    preferUserContent: true,          // true=保存用户原文, false=保存LLM生成的摘要
+    maxContentLength: 200,            // 保存内容的最大长度
+    
+    // 排除规则
+    excludePatterns: [
+      /^(好的|ok|嗯|哦|谢谢|thanks|thank you|got it|understood|明白|收到)[\s,!.。！]*/i,
+      /^(帮我|请|help me|can you|could you)/i,
+    ],
+    
+    // 敏感信息过滤（增强）
+    sensitivePatterns: [
+      /password\s*[:=]/i,
+      /密码\s*[:=：]/i,
+      /api[_-]?key\s*[:=]/i,
+      /secret\s*[:=]/i,
+      /token\s*[:=]/i,
+      /credential/i,
+      /private[_-]?key/i,
+      /-----BEGIN/i,
+      /ghp_[a-zA-Z0-9]{20,}/i,        // GitHub token
+      /sk-[a-zA-Z0-9]{20,}/i,         // OpenAI key
+      /AKIA[A-Z0-9]{16}/i,            // AWS key
+      /xox[baprs]-[a-zA-Z0-9-]+/i,    // Slack token
+    ],
+    
+    // Prompt 模板配置
+    promptStyle: 'concise' as 'concise' | 'detailed',  // 简洁模式更适合小模型
+    language: 'auto' as 'auto' | 'zh' | 'en',          // 输出语言
+  },
+  
+  // V5.2 自动编码配置 (正则回退方案)
+  autoEncode: {
+    enabled: true,
+    minMessageLength: 15,
+    
+    // ========== 规则/偏好模式 ==========
+    // 用户表达个人偏好、编码规范、工作流程时触发
+    rulePatterns: [
+      // 中文：禁止/必须类
+      /不要|不用|别用|禁止|不许|不能|不可以|严禁|避免|杜绝/i,
+      /必须|一定要|务必|要求|强制|只能|只用|只准/i,
+      // 中文：偏好类
+      /偏好|喜欢|习惯|倾向|更愿意|比较喜欢|我觉得.*好/i,
+      /讨厌|不喜欢|反感|烦|受不了/i,
+      // 中文：时间标记（表示持久规则）
+      /以后|今后|从现在起|之后都|以后都|永远|一直/i,
+      /记住|记得|别忘了|提醒我/i,
+      // 中文：规范/标准类
+      /规范|标准|约定|惯例|风格|格式|命名/i,
+      /统一用|统一使用|一律|全部用|都用/i,
+      
+      // 英文：Prohibition/Must
+      /don't|dont|do not|never|avoid|stop using|quit/i,
+      /must|always|shall|should|have to|need to|required/i,
+      // 英文：Preference
+      /prefer|like to|rather|better to|fan of|love using/i,
+      /hate|dislike|can't stand|annoying/i,
+      // 英文：Time markers
+      /from now on|going forward|in the future|from here on/i,
+      /remember|keep in mind|don't forget|note that/i,
+      // 英文：Standards
+      /convention|standard|pattern|style guide|best practice/i,
+      /always use|stick to|follow the/i,
+    ],
+    
+    // ========== 事实/配置模式 ==========
+    // 技术栈、配置信息、环境变量等
+    factPatterns: [
+      // 中文：技术栈
+      /用的是|使用的是|基于|采用|技术栈|框架是/i,
+      /版本|v\d+|@\d+/i,
+      // 中文：配置
+      /配置|设置|参数|选项|环境变量/i,
+      /地址|路径|目录|文件夹|位置/i,
+      /端口|port|host|域名|url|uri|链接/i,
+      // 中文：凭证（注意：自动编码时会跳过敏感信息）
+      /密码|口令|token|key|secret|凭证|密钥/i,
+      /api|接口|endpoint|服务/i,
+      // 中文：数据库
+      /数据库|database|db|mysql|postgres|mongo|redis|sqlite/i,
+      /表名|字段|schema|集合|collection/i,
+      // 中文：部署/环境
+      /服务器|server|vps|云|aws|azure|gcp|阿里云|腾讯云/i,
+      /环境|environment|dev|prod|staging|test/i,
+      /docker|容器|k8s|kubernetes|nginx/i,
+      
+      // 英文：Tech stack
+      /using|powered by|built with|based on|running on/i,
+      /version|v\d+\.\d+/i,
+      // 英文：Configuration
+      /config|setting|option|parameter|env var/i,
+      /path|directory|folder|location|file/i,
+      /port|host|domain|url|endpoint/i,
+      // 英文：Credentials
+      /password|token|api.?key|secret|credential/i,
+      // 英文：Infrastructure
+      /server|instance|container|cluster|node/i,
+      /deployed on|hosted on|running on/i,
+    ],
+    
+    // ========== 事件模式 ==========
+    // 完成的任务、解决的问题、里程碑
+    eventPatterns: [
+      // 中文：完成类
+      /完成了|搞定了|做完了|弄好了|实现了|写完了/i,
+      /成功|ok了|可以了|没问题了|通过了/i,
+      // 中文：修复类
+      /修复了|修好了|解决了|处理了|搞定.*bug|fix.*了/i,
+      /终于.*了|花了.*时间|折腾.*久/i,
+      // 中文：部署/发布
+      /部署了|发布了|上线了|推送了|提交了|合并了/i,
+      /deploy|release|publish|push|merge|commit/i,
+      // 中文：问题/踩坑
+      /踩坑|踩了.*坑|遇到.*问题|碰到.*bug/i,
+      /报错|error|异常|exception|失败|fail/i,
+      /原来是|发现是|问题在于|根本原因/i,
+      // 中文：学习/发现
+      /学到了|发现了|原来|才知道|没想到/i,
+      /技巧|窍门|诀窍|方法|思路/i,
+      
+      // 英文：Completion
+      /finished|completed|done with|wrapped up|shipped/i,
+      /works now|working now|succeeded|passed/i,
+      // 英文：Fixing
+      /fixed|resolved|solved|patched|debugged/i,
+      /finally|after.*hours|took.*to figure out/i,
+      // 英文：Deployment
+      /deployed|released|published|pushed|merged/i,
+      /went live|in production|rolled out/i,
+      // 英文：Problems
+      /ran into|encountered|hit a|stumbled upon/i,
+      /bug|error|issue|problem|crash|exception/i,
+      /turns out|realized|figured out|root cause/i,
+      // 英文：Learning
+      /learned|discovered|found out|til:|today i learned/i,
+      /trick|tip|hack|workaround|solution/i,
+    ],
+    
+    // ========== 身份/个人信息模式 ==========
+    // 用户的个人信息、身份、联系方式
+    identityPatterns: [
+      // 中文
+      /我是|我叫|我的名字|本人|我自己/i,
+      /我的.*是|我.*住在|我在.*工作/i,
+      /电话|手机|邮箱|email|微信|qq/i,
+      /生日|年龄|岁/i,
+      
+      // 英文
+      /my name is|i am|i'm called|call me/i,
+      /i live in|i work at|i'm from/i,
+      /my.*is|my phone|my email/i,
+    ],
+    
+    // ========== 项目信息模式 ==========
+    // 当前项目的关键信息
+    projectPatterns: [
+      // 中文
+      /这个项目|本项目|当前项目|这个仓库|这个repo/i,
+      /项目名|项目叫|repo名/i,
+      /主要功能|核心功能|用来做|目的是/i,
+      /架构|结构|目录结构|文件结构/i,
+      
+      // 英文
+      /this project|this repo|current project/i,
+      /project name|repo name|codebase/i,
+      /main feature|core function|purpose is|used for/i,
+      /architecture|structure|layout/i,
+    ],
+  }
 };
 
 // === 辅助函数 ===
@@ -25,6 +232,288 @@ function getProjectHash(cwd: string): string {
 
 function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+// === V5.3 本地 LLM 分析器 (Enhanced) ===
+let ollamaAvailable: boolean | null = null;
+
+interface LocalLLMAnalysisResult {
+  should_save: boolean;
+  type: 'fact' | 'rule' | 'event';
+  importance: number;
+  scope: 'global' | 'local';
+  content: string;
+  tags: string[];
+  reason: string;
+}
+
+// 检测 Ollama 是否可用
+async function checkOllamaAvailable(): Promise<boolean> {
+  if (ollamaAvailable !== null) return ollamaAvailable;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    
+    const response = await fetch(`${CONFIG.localLLM.baseUrl}/api/tags`, {
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    ollamaAvailable = response.ok;
+    return ollamaAvailable;
+  } catch (e) {
+    ollamaAvailable = false;
+    return false;
+  }
+}
+
+// 检测语言
+function detectLanguage(text: string): 'zh' | 'en' {
+  const chineseChars = text.match(/[\u4e00-\u9fa5]/g) || [];
+  return chineseChars.length > text.length * 0.1 ? 'zh' : 'en';
+}
+
+// 检查是否匹配排除模式
+function matchesExcludePattern(text: string): boolean {
+  return CONFIG.localLLM.excludePatterns.some(pattern => pattern.test(text));
+}
+
+// 检查是否包含敏感信息
+function hasSensitiveInfo(text: string): boolean {
+  return CONFIG.localLLM.sensitivePatterns.some(pattern => pattern.test(text));
+}
+
+// V5.3 Enhanced: 构建优化的分析 Prompt
+function buildAnalysisPrompt(userMessage: string, assistantMessage: string): string {
+  const maxLen = CONFIG.localLLM.maxInputLength;
+  const userMsg = userMessage.length > maxLen ? userMessage.substring(0, maxLen) + '...' : userMessage;
+  const assistantMsg = assistantMessage.length > maxLen / 2 ? assistantMessage.substring(0, maxLen / 2) + '...' : assistantMessage;
+  
+  const lang = CONFIG.localLLM.language === 'auto' 
+    ? detectLanguage(userMessage) 
+    : CONFIG.localLLM.language;
+  
+  if (CONFIG.localLLM.promptStyle === 'concise') {
+    // 简洁模式 - 更适合 7B 模型
+    return buildConcisePrompt(userMsg, assistantMsg, lang);
+  } else {
+    // 详细模式 - 更适合大模型
+    return buildDetailedPrompt(userMsg, assistantMsg, lang);
+  }
+}
+
+// 简洁 Prompt（推荐用于 7B 模型）
+function buildConcisePrompt(userMsg: string, assistantMsg: string, lang: 'zh' | 'en'): string {
+  if (lang === 'zh') {
+    return `分析对话，判断是否值得记忆。只输出JSON。
+
+对话:
+用户: ${userMsg}
+助手: ${assistantMsg}
+
+判断标准:
+✅ 保存: 用户偏好/规则、技术配置、完成的任务、踩坑经验
+❌ 不保存: 问候语、简单问答、临时信息、敏感数据
+
+输出格式:
+{"save":true/false,"type":"rule/fact/event","imp":1-10,"scope":"global/local","content":"摘要","tags":["标签"]}
+
+示例:
+用户: 以后别用var了
+{"save":true,"type":"rule","imp":8,"scope":"global","content":"禁止使用var，统一用let/const","tags":["js","代码规范"]}
+
+用户: 帮我看下这个错误
+{"save":false,"type":"fact","imp":0,"scope":"local","content":"","tags":[]}
+
+用户: 数据库密码是123456
+{"save":false,"type":"fact","imp":0,"scope":"local","content":"","tags":[]}
+
+用户: 终于把登录bug修好了，是token过期的问题
+{"save":true,"type":"event","imp":6,"scope":"local","content":"修复登录bug：token过期处理","tags":["bug","auth"]}
+
+用户: 这个项目用的React 18和TypeScript
+{"save":true,"type":"fact","imp":5,"scope":"local","content":"项目技术栈：React 18 + TypeScript","tags":["react","ts"]}
+
+用户: 我叫张三，是个程序员
+{"save":true,"type":"fact","imp":7,"scope":"global","content":"用户是程序员，名叫张三","tags":["identity"]}
+
+现在分析上面的对话，输出JSON:`;
+  } else {
+    return `Analyze conversation. Decide if worth saving to memory. Output JSON only.
+
+Conversation:
+User: ${userMsg}
+Assistant: ${assistantMsg}
+
+Save: preferences, rules, configs, completed tasks, lessons learned
+Skip: greetings, simple Q&A, temp info, sensitive data
+
+Format:
+{"save":true/false,"type":"rule/fact/event","imp":1-10,"scope":"global/local","content":"summary","tags":["tag"]}
+
+Examples:
+User: Don't use var anymore
+{"save":true,"type":"rule","imp":8,"scope":"global","content":"Never use var, use let/const instead","tags":["js","style"]}
+
+User: Can you check this error?
+{"save":false,"type":"fact","imp":0,"scope":"local","content":"","tags":[]}
+
+User: Finally fixed the login bug, was a token expiry issue
+{"save":true,"type":"event","imp":6,"scope":"local","content":"Fixed login bug: added token expiry handling","tags":["bug","auth"]}
+
+User: This project uses React 18 with TypeScript
+{"save":true,"type":"fact","imp":5,"scope":"local","content":"Tech stack: React 18 + TypeScript","tags":["react","ts"]}
+
+Now analyze and output JSON:`;
+  }
+}
+
+// 详细 Prompt（用于更大的模型）
+function buildDetailedPrompt(userMsg: string, assistantMsg: string, lang: 'zh' | 'en'): string {
+  return `You are a memory analyzer for a coding assistant. Your job is to decide if a conversation contains information worth saving to long-term memory.
+
+## Current Conversation
+USER: ${userMsg}
+ASSISTANT: ${assistantMsg}
+
+## Classification Guide
+
+### SAVE as "rule" (importance 6-10):
+- User preferences: "I prefer...", "不要...", "always...", "never..."
+- Coding standards: naming conventions, style guides
+- Work habits: "我习惯...", "I usually..."
+- Dislikes: "我讨厌...", "I hate when..."
+
+### SAVE as "fact" (importance 3-6):
+- Tech stack: "uses React", "用的是Vue"
+- Configurations: ports, paths, versions
+- Project info: architecture, structure
+- Personal info: name, role (scope: global)
+
+### SAVE as "event" (importance 4-7):
+- Completed tasks: "finished", "done", "完成了"
+- Bug fixes: "fixed", "solved", "修好了"
+- Deployments: "deployed", "released", "上线了"
+- Lessons learned: "turns out", "原来是"
+
+### DO NOT SAVE:
+- Greetings: "hi", "好的", "thanks"
+- Questions without context
+- Temporary debugging info
+- Sensitive data: passwords, tokens, keys
+
+## Scope Guide
+- "global": applies everywhere (personal preferences, coding style)
+- "local": project-specific (this project's tech stack)
+
+## Output Format (JSON only)
+{
+  "save": boolean,
+  "type": "fact" | "rule" | "event",
+  "imp": 1-10,
+  "scope": "global" | "local",
+  "content": "concise summary in same language as user",
+  "tags": ["relevant", "tags"]
+}
+
+Analyze and output JSON:`;
+}
+
+// 调用 Ollama 进行分析
+async function analyzeWithLocalLLM(userMessage: string, assistantMessage: string): Promise<LocalLLMAnalysisResult | null> {
+  if (!CONFIG.localLLM.enabled) return null;
+  
+  // 快速过滤：排除模式
+  if (matchesExcludePattern(userMessage)) {
+    return { should_save: false, type: 'fact', importance: 0, scope: 'local', content: '', tags: [], reason: 'Excluded by pattern' };
+  }
+  
+  // 快速过滤：敏感信息
+  if (hasSensitiveInfo(userMessage) || hasSensitiveInfo(assistantMessage)) {
+    return { should_save: false, type: 'fact', importance: 0, scope: 'local', content: '', tags: [], reason: 'Contains sensitive info' };
+  }
+  
+  const isAvailable = await checkOllamaAvailable();
+  if (!isAvailable) return null;
+  
+  try {
+    const prompt = buildAnalysisPrompt(userMessage, assistantMessage);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CONFIG.localLLM.timeout);
+    
+    const response = await fetch(`${CONFIG.localLLM.baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: CONFIG.localLLM.model,
+        prompt: prompt,
+        stream: false,
+        options: {
+          temperature: CONFIG.localLLM.temperature,
+          num_predict: CONFIG.localLLM.maxTokens,
+        }
+      }),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const text = data.response?.trim() || '';
+    
+    // 解析 JSON（处理可能的 markdown 包裹）
+    let jsonStr = text;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0];
+    }
+    
+    const raw = JSON.parse(jsonStr);
+    
+    // 适配简化格式（save/imp）和标准格式（should_save/importance）
+    const result: LocalLLMAnalysisResult = {
+      should_save: raw.save ?? raw.should_save ?? false,
+      type: raw.type || 'fact',
+      importance: raw.imp ?? raw.importance ?? 3,
+      scope: raw.scope || 'local',
+      content: raw.content || '',
+      tags: raw.tags || [],
+      reason: raw.reason || ''
+    };
+    
+    // 验证和修正
+    if (typeof result.should_save !== 'boolean') result.should_save = false;
+    if (!['fact', 'rule', 'event'].includes(result.type)) result.type = 'fact';
+    if (!['global', 'local'].includes(result.scope)) result.scope = 'local';
+    if (!Array.isArray(result.tags)) result.tags = [];
+    
+    result.importance = Math.max(1, Math.min(10, Number(result.importance) || 3));
+    
+    // 应用重要性阈值
+    if (result.should_save && result.importance < CONFIG.localLLM.minImportanceToSave) {
+      result.should_save = false;
+      result.reason = `Importance ${result.importance} below threshold ${CONFIG.localLLM.minImportanceToSave}`;
+    }
+    
+    // 处理内容
+    if (result.should_save) {
+      if (!result.content || result.content.length < 5) {
+        // 如果 LLM 没有生成好的摘要，使用用户原文
+        result.content = userMessage.substring(0, CONFIG.localLLM.maxContentLength).replace(/\n+/g, ' ').trim();
+      } else if (result.content.length > CONFIG.localLLM.maxContentLength) {
+        result.content = result.content.substring(0, CONFIG.localLLM.maxContentLength) + '...';
+      }
+    }
+    
+    return result;
+  } catch (e) {
+    // 静默失败，回退到正则
+    return null;
+  }
 }
 
 // === 延迟加载模块 ===
@@ -48,7 +537,7 @@ async function loadDependencies() {
   transformersEnv.cacheDir = CACHE_DIR;
 }
 
-// === 数据库初始化 (V4.2 Schema: Hippocampus) ===
+// === 数据库初始化 (V5.1 Schema) ===
 async function initDB() {
   if (db) return db;
   await loadDependencies();
@@ -56,43 +545,35 @@ async function initDB() {
   db = new Database(DB_PATH);
   sqliteVec.load(db);
 
-  // 1. Memories Table (Expanded)
+  // 1. Memories Table
   db.exec(`
     CREATE TABLE IF NOT EXISTS memories (
       id TEXT PRIMARY KEY,
       content TEXT NOT NULL,
       tags TEXT,
-      
-      -- Context & Scope
-      scope TEXT DEFAULT 'local',       -- 'global' | 'local'
-      project_id TEXT,                  -- 项目路径Hash (仅 local 有效)
-      
-      -- V3.0 Fields
-      status TEXT DEFAULT 'active',     -- 'active' | 'archived' | 'rejected'
-      parent_id TEXT,                   -- 演化链
+      scope TEXT DEFAULT 'local',
+      project_id TEXT,
+      status TEXT DEFAULT 'active',
+      parent_id TEXT,
       change_reason TEXT,
       source TEXT DEFAULT 'user',
-      
-      -- V4.0 Brain-Like Fields
-      type TEXT DEFAULT 'fact',         -- 'fact' (事实), 'event' (经历), 'rule' (规则/偏好)
-      importance INTEGER DEFAULT 1,     -- 1-10, 情感/重要性权重
-      decay_rate REAL DEFAULT 0.05,     -- 遗忘速率 (0.0 - 1.0)
-      
-      -- Access Stats
-      access_count INTEGER DEFAULT 0,   -- 提取次数 (LTP: Long-term Potentiation)
-      last_accessed_at INTEGER,         -- 最后激活时间
+      type TEXT DEFAULT 'fact',
+      importance INTEGER DEFAULT 1,
+      decay_rate REAL DEFAULT 0.05,
+      access_count INTEGER DEFAULT 0,
+      last_accessed_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
   `);
 
-  // 2. Associative Links (Synapses)
+  // 2. Associative Links
   db.exec(`
     CREATE TABLE IF NOT EXISTS memory_links (
       source_id TEXT NOT NULL,
       target_id TEXT NOT NULL,
-      type TEXT DEFAULT 'association', -- 'association', 'causality', 'sequence'
-      strength REAL DEFAULT 1.0,       -- 连接强度 0.0-1.0
+      type TEXT DEFAULT 'association',
+      strength REAL DEFAULT 1.0,
       created_at INTEGER NOT NULL,
       PRIMARY KEY (source_id, target_id)
     );
@@ -106,12 +587,34 @@ async function initDB() {
     );
   `);
 
-  // 4. Schema Migration (Auto-upgrade V3 -> V4)
+  // 4. Projects Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      path TEXT UNIQUE,
+      last_active_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+  `);
+
+  // 5. V5.1 新增：对话缓冲区（用于自动编码分析）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS conversation_buffer (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      timestamp INTEGER NOT NULL
+    );
+  `);
+
+  // Schema Migration
   try {
     const tableInfo = db.pragma("table_info(memories)");
     const hasType = tableInfo.some((col: any) => col.name === "type");
     if (!hasType) {
-      console.log("🧠 Migrating memory cortex to V4.0 (Hippocampus)...");
+      console.log("🧠 Migrating to V5.1...");
       const columns = [
         "ADD COLUMN type TEXT DEFAULT 'fact'",
         "ADD COLUMN importance INTEGER DEFAULT 1",
@@ -121,9 +624,7 @@ async function initDB() {
         try { db.exec(`ALTER TABLE memories ${col};`); } catch (e) {}
       }
     }
-  } catch (e) {
-    console.error("Schema migration failed:", e);
-  }
+  } catch (e) {}
 
   return db;
 }
@@ -144,7 +645,318 @@ async function getEmbedding(text: string): Promise<Float32Array> {
   return new Float32Array(output.data);
 }
 
-// === 核心逻辑：仿生记忆存储 ===
+// === 项目注册 ===
+async function registerProject(projectId: string, cwd: string) {
+  const database = await initDB();
+  const now = Date.now();
+  const projectName = path.basename(cwd);
+  
+  database.prepare(`
+    INSERT INTO projects (id, name, path, last_active_at, created_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET last_active_at = ?, name = COALESCE(name, ?)
+  `).run(projectId, projectName, cwd, now, now, now, projectName);
+}
+
+async function findProjectByName(name: string): Promise<{ id: string; path: string } | null> {
+  const database = await initDB();
+  const row = database.prepare(`
+    SELECT id, path FROM projects 
+    WHERE LOWER(name) LIKE ? OR LOWER(path) LIKE ?
+    ORDER BY last_active_at DESC LIMIT 1
+  `).get(`%${name.toLowerCase()}%`, `%${name.toLowerCase()}%`);
+  return row || null;
+}
+
+async function getProjectActivity(projectId: string): Promise<'current' | 'recent' | 'stale' | 'unknown'> {
+  const database = await initDB();
+  const row = database.prepare(`SELECT last_active_at FROM projects WHERE id = ?`).get(projectId);
+  if (!row) return 'unknown';
+  
+  const daysAgo = (Date.now() - row.last_active_at) / (1000 * 60 * 60 * 24);
+  if (daysAgo < CONFIG.context.recentProjectDays) return 'recent';
+  if (daysAgo < CONFIG.context.staleProjectDays) return 'stale';
+  return 'stale';
+}
+
+// === V5.1 核心：对话缓冲区管理 ===
+async function bufferConversation(projectId: string, role: string, content: string) {
+  const database = await initDB();
+  database.prepare(`
+    INSERT INTO conversation_buffer (project_id, role, content, timestamp)
+    VALUES (?, ?, ?, ?)
+  `).run(projectId, role, content, Date.now());
+  
+  // 只保留最近 20 条
+  database.prepare(`
+    DELETE FROM conversation_buffer 
+    WHERE project_id = ? AND id NOT IN (
+      SELECT id FROM conversation_buffer WHERE project_id = ? ORDER BY timestamp DESC LIMIT 20
+    )
+  `).run(projectId, projectId);
+}
+
+async function getRecentConversation(projectId: string, limit: number = 10): Promise<Array<{role: string, content: string}>> {
+  const database = await initDB();
+  return database.prepare(`
+    SELECT role, content FROM conversation_buffer 
+    WHERE project_id = ? 
+    ORDER BY timestamp DESC LIMIT ?
+  `).all(projectId, limit).reverse();
+}
+
+async function clearConversationBuffer(projectId: string) {
+  const database = await initDB();
+  database.prepare(`DELETE FROM conversation_buffer WHERE project_id = ?`).run(projectId);
+}
+
+// === V5.2 核心：智能自动编码分析器 ===
+interface AutoEncodeResult {
+  shouldSave: boolean;
+  type?: 'fact' | 'event' | 'rule';
+  importance?: number;
+  scope?: 'global' | 'local';
+  content?: string;
+  reason?: string;
+  tags?: string[];
+}
+
+// 检测是否匹配任一模式
+function matchesAnyPattern(text: string, patterns: RegExp[]): { matched: boolean; pattern?: RegExp } {
+  for (const pattern of patterns) {
+    if (pattern.test(text)) {
+      return { matched: true, pattern };
+    }
+  }
+  return { matched: false };
+}
+
+// 智能判断 scope
+function detectScope(text: string): 'global' | 'local' {
+  const globalIndicators = /全局|global|所有项目|all projects|everywhere|任何地方|通用|universal|总是|always/i;
+  const localIndicators = /这个项目|this project|这里|here|当前|current|本项目|这个仓库/i;
+  
+  if (globalIndicators.test(text)) return 'global';
+  if (localIndicators.test(text)) return 'local';
+  
+  // 默认：编程风格/偏好类的规则通常是 global
+  const stylePatterns = /代码|code|命名|naming|格式|format|风格|style|缩进|indent|注释|comment/i;
+  if (stylePatterns.test(text)) return 'global';
+  
+  return 'local';
+}
+
+// 智能判断重要性
+function detectImportance(text: string, type: 'fact' | 'event' | 'rule'): number {
+  let base = type === 'rule' ? 7 : type === 'event' ? 4 : 3;
+  
+  // 强调词加分
+  const emphasisPatterns = [
+    { pattern: /非常重要|very important|critical|关键|crucial|必须|must|绝对/i, boost: 2 },
+    { pattern: /重要|important|注意|note|记住|remember/i, boost: 1 },
+    { pattern: /永远|always|never|绝不|严禁|forbidden/i, boost: 2 },
+    { pattern: /小心|careful|警告|warning|危险|danger/i, boost: 1 },
+  ];
+  
+  for (const { pattern, boost } of emphasisPatterns) {
+    if (pattern.test(text)) {
+      base += boost;
+    }
+  }
+  
+  // 踩坑经验加分（经验教训很宝贵）
+  if (/踩坑|坑|bug|花了.*时间|折腾|终于|finally|after.*hours/i.test(text)) {
+    base += 2;
+  }
+  
+  return Math.min(base, 10);
+}
+
+// 智能提取标签
+function extractTags(text: string): string[] {
+  const tags: string[] = [];
+  
+  // 技术栈标签
+  const techPatterns: Record<string, RegExp> = {
+    'react': /react/i,
+    'vue': /vue/i,
+    'angular': /angular/i,
+    'node': /node\.?js|nodejs/i,
+    'python': /python|py|pip/i,
+    'typescript': /typescript|ts/i,
+    'javascript': /javascript|js/i,
+    'docker': /docker/i,
+    'kubernetes': /k8s|kubernetes/i,
+    'git': /git|github|gitlab/i,
+    'database': /mysql|postgres|mongo|redis|sqlite|数据库/i,
+    'api': /api|rest|graphql|接口/i,
+    'css': /css|sass|scss|tailwind|样式/i,
+    'testing': /test|jest|mocha|pytest|测试/i,
+    'deploy': /deploy|部署|发布|ci\/cd/i,
+  };
+  
+  for (const [tag, pattern] of Object.entries(techPatterns)) {
+    if (pattern.test(text)) {
+      tags.push(tag);
+    }
+  }
+  
+  return tags.slice(0, 5); // 最多 5 个标签
+}
+
+// 智能内容提取和清理
+function extractContent(userMsg: string, assistantMsg: string, type: 'fact' | 'event' | 'rule'): string {
+  let content = userMsg;
+  
+  // 移除常见的无意义前缀
+  content = content.replace(/^(好的|ok|嗯|哦|那|所以|然后|接下来|请|帮我|麻烦)[，,。.：:\s]*/i, '');
+  content = content.replace(/^(hey|hi|hello|so|well|okay|alright)[,.\s]*/i, '');
+  
+  // 根据类型调整长度
+  const maxLength = type === 'rule' ? 300 : type === 'event' ? 200 : 250;
+  
+  if (content.length > maxLength) {
+    // 尝试在句号处截断
+    const truncated = content.substring(0, maxLength);
+    const lastPeriod = Math.max(
+      truncated.lastIndexOf('。'),
+      truncated.lastIndexOf('.'),
+      truncated.lastIndexOf('！'),
+      truncated.lastIndexOf('!'),
+    );
+    if (lastPeriod > maxLength * 0.5) {
+      content = truncated.substring(0, lastPeriod + 1);
+    } else {
+      content = truncated + '...';
+    }
+  }
+  
+  return content.replace(/\n+/g, ' ').trim();
+}
+
+// 检测是否包含敏感信息
+function containsSensitiveInfo(text: string): boolean {
+  const sensitivePatterns = [
+    /password\s*[:=]/i,
+    /密码\s*[:=：]/i,
+    /api.?key\s*[:=]/i,
+    /secret\s*[:=]/i,
+    /token\s*[:=]/i,
+    /credential/i,
+    /private.?key/i,
+    /-----BEGIN/i,  // PEM 格式
+    /ghp_[a-zA-Z0-9]+/i,  // GitHub token
+    /sk-[a-zA-Z0-9]+/i,   // OpenAI key
+  ];
+  
+  return sensitivePatterns.some(p => p.test(text));
+}
+
+function analyzeForAutoEncode(userMessage: string, assistantMessage: string): AutoEncodeResult[] {
+  const results: AutoEncodeResult[] = [];
+  
+  // 太短的消息不分析
+  if (userMessage.length < CONFIG.autoEncode.minMessageLength) {
+    return results;
+  }
+  
+  // 包含敏感信息时不自动保存
+  if (containsSensitiveInfo(userMessage) || containsSensitiveInfo(assistantMessage)) {
+    return results;
+  }
+  
+  const combined = `${userMessage} ${assistantMessage}`;
+  let hasMatch = false;
+  
+  // 1. 检查身份/个人信息模式（优先级最高，设为 global）
+  const identityMatch = matchesAnyPattern(userMessage, CONFIG.autoEncode.identityPatterns);
+  if (identityMatch.matched) {
+    results.push({
+      shouldSave: true,
+      type: 'fact',
+      importance: 8,
+      scope: 'global',
+      content: extractContent(userMessage, assistantMessage, 'fact'),
+      reason: 'Personal identity information',
+      tags: ['identity', 'personal']
+    });
+    hasMatch = true;
+  }
+  
+  // 2. 检查规则模式
+  if (!hasMatch) {
+    const ruleMatch = matchesAnyPattern(userMessage, CONFIG.autoEncode.rulePatterns);
+    if (ruleMatch.matched) {
+      const scope = detectScope(userMessage);
+      const importance = detectImportance(userMessage, 'rule');
+      results.push({
+        shouldSave: true,
+        type: 'rule',
+        importance,
+        scope,
+        content: extractContent(userMessage, assistantMessage, 'rule'),
+        reason: 'User expressed preference/rule',
+        tags: extractTags(combined)
+      });
+      hasMatch = true;
+    }
+  }
+  
+  // 3. 检查项目信息模式
+  if (!hasMatch) {
+    const projectMatch = matchesAnyPattern(userMessage, CONFIG.autoEncode.projectPatterns);
+    if (projectMatch.matched) {
+      results.push({
+        shouldSave: true,
+        type: 'fact',
+        importance: 5,
+        scope: 'local',
+        content: extractContent(userMessage, assistantMessage, 'fact'),
+        reason: 'Project-specific information',
+        tags: ['project', ...extractTags(combined)]
+      });
+      hasMatch = true;
+    }
+  }
+  
+  // 4. 检查事件模式
+  if (!hasMatch) {
+    const eventMatch = matchesAnyPattern(combined, CONFIG.autoEncode.eventPatterns);
+    if (eventMatch.matched) {
+      const importance = detectImportance(combined, 'event');
+      results.push({
+        shouldSave: true,
+        type: 'event',
+        importance,
+        scope: 'local',
+        content: extractContent(userMessage, assistantMessage, 'event'),
+        reason: 'Significant event detected',
+        tags: extractTags(combined)
+      });
+      hasMatch = true;
+    }
+  }
+  
+  // 5. 检查事实模式（最后检查，避免误触发）
+  if (!hasMatch) {
+    const factMatch = matchesAnyPattern(combined, CONFIG.autoEncode.factPatterns);
+    if (factMatch.matched) {
+      results.push({
+        shouldSave: true,
+        type: 'fact',
+        importance: detectImportance(combined, 'fact'),
+        scope: 'local',
+        content: extractContent(userMessage, assistantMessage, 'fact'),
+        reason: 'Technical/config information detected',
+        tags: extractTags(combined)
+      });
+    }
+  }
+  
+  return results;
+}
+
+// === 核心：记忆存储 ===
 interface MemoryOptions {
   tags?: string[];
   scope?: "global" | "local";
@@ -165,22 +977,29 @@ async function saveMemory(content: string, options: MemoryOptions = {}): Promise
   const projectId = scope === "local" ? (options.projectId || "unknown") : null;
   const tagsStr = options.tags?.length ? options.tags.map(t => t.toLowerCase()).join(",") : null;
   
-  // 智能默认值
   const type = options.type || "fact";
   let importance = options.importance || 1;
   let decayRate = CONFIG.defaultDecayRate;
 
-  // 规则类记忆更难遗忘
   if (type === 'rule') {
     importance = Math.max(importance, 5); 
-    decayRate = 0.01; // 几乎不遗忘
+    decayRate = 0.01;
   }
-  // 高重要性记忆不遗忘
   if (importance >= 8) {
     decayRate = 0.0;
   }
 
-  // 演化逻辑
+  // 检查是否已有高度相似的记忆（去重）
+  const existing = await searchMemoriesInternal(content, projectId || "", 1, null, true);
+  if (existing.length > 0 && existing[0].similarity > 0.92) {
+    // 非常相似，只更新访问计数而不创建新记忆
+    database.prepare(`
+      UPDATE memories SET access_count = access_count + 1, last_accessed_at = ?
+      WHERE id = ?
+    `).run(now, existing[0].id);
+    return existing[0].id;
+  }
+
   if (options.parentId) {
     database.prepare(`
       UPDATE memories 
@@ -188,14 +1007,12 @@ async function saveMemory(content: string, options: MemoryOptions = {}): Promise
       WHERE id = ?
     `).run(now, options.changeReason || "Evolved", options.parentId);
     
-    // 继承链接 (Synaptic inheritance)
     database.prepare(`
       INSERT OR IGNORE INTO memory_links (source_id, target_id, type, strength, created_at)
       SELECT ?, target_id, type, strength, ? FROM memory_links WHERE source_id = ?
     `).run(id, now, options.parentId);
   }
 
-  // 插入主表
   const embedding = await getEmbedding(content);
   const embeddingBuffer = Buffer.from(embedding.buffer);
 
@@ -215,85 +1032,87 @@ async function saveMemory(content: string, options: MemoryOptions = {}): Promise
     INSERT INTO vec_memories (memory_id, embedding) VALUES (?, ?)
   `).run(id, embeddingBuffer);
 
-  // 自动联想 (Spreading Activation - Simple Version)
-  // 如果不是更新旧记忆，尝试找到一个最相似的现有记忆建立弱连接
+  // 自动连接
   if (!options.parentId) {
     try {
-        const similar = await searchMemories(content, projectId || "", 1);
-        if (similar.length > 0 && similar[0].similarity > 0.85) {
-            database.prepare(`
-                INSERT INTO memory_links (source_id, target_id, type, strength, created_at)
-                VALUES (?, ?, 'auto_association', ?, ?)
-            `).run(id, similar[0].id, 0.5, now);
+      const similar = await searchMemoriesInternal(content, projectId || "", 3, null, true);
+      for (const mem of similar) {
+        if (mem.id !== id && mem.similarity > 0.7) {
+          const strength = Math.min(1.0, mem.similarity * 0.8);
+          database.prepare(`
+            INSERT OR IGNORE INTO memory_links (source_id, target_id, type, strength, created_at)
+            VALUES (?, ?, 'auto_association', ?, ?)
+          `).run(id, mem.id, strength, now);
         }
+      }
     } catch(e) {}
   }
 
   return id;
 }
 
-// === 核心逻辑：混合评分检索 (The Recall Algorithm) ===
-async function searchMemories(query: string, projectId: string, limit: number = CONFIG.maxMemories) {
+// === 核心：混合检索 + 激活扩散 ===
+async function searchMemoriesInternal(
+  query: string, 
+  currentProjectId: string, 
+  limit: number = CONFIG.maxMemories,
+  targetProjectId: string | null = null,
+  disableSpread: boolean = false
+) {
   const database = await initDB();
   const queryEmbedding = await getEmbedding(query);
   const queryBuffer = Buffer.from(queryEmbedding.buffer);
   const now = Date.now();
 
-  // 1. Vector Search (Semantic Retrieval)
   const vecResults = database.prepare(`
     SELECT memory_id, distance
     FROM vec_memories
     WHERE embedding MATCH ? AND k = ?
     ORDER BY distance
-  `).all(queryBuffer, limit * 4); // Fetch more candidates for re-ranking
+  `).all(queryBuffer, limit * 5);
 
   if (vecResults.length === 0) return [];
 
   const ids = vecResults.map((r: any) => r.memory_id);
   const placeholders = ids.map(() => "?").join(",");
 
-  // 2. Fetch Metadata & Apply Filters (Relaxed for Smart Connectivity)
   const rows = database.prepare(`
     SELECT * FROM memories 
     WHERE id IN (${placeholders})
     AND status = 'active'
-    -- We removed the hard project_id filter to allow cross-project association
   `).all(...ids);
 
-  // 3. Brain-Like Re-ranking (with Context Penalty)
-  // Score = Similarity * (1 + log(Access)) * Importance * TimeDecay * ContextMatch
-  const results = rows.map((row: any) => {
+  const effectiveProjectId = targetProjectId || currentProjectId;
+  
+  const results = await Promise.all(rows.map(async (row: any) => {
     const vec = vecResults.find((v: any) => v.memory_id === row.id);
     const distance = vec ? vec.distance : 1.0;
-    const similarity = Math.max(0, 1 - (distance * distance / 2)); // Cosine approx
+    const similarity = Math.max(0, 1 - (distance * distance / 2));
     
-    // Time Decay (Ebbinghaus Forgetting Curve approx)
     const daysElapsed = (now - (row.last_accessed_at || row.created_at)) / (1000 * 60 * 60 * 24);
     const retention = 1 / (1 + (row.decay_rate || 0.05) * daysElapsed);
     
-    // Importance Boost
     const importanceBoost = 1 + (row.importance || 1) * 0.1; 
-    
-    // LTP
     const accessBoost = 1 + Math.log1p(row.access_count || 0) * 0.1;
 
-    // Context / Scope Penalty (The "Permeability" Logic)
     let contextFactor = 1.0;
-    const isLocalContext = (row.scope === 'local' && row.project_id === projectId);
+    const isLocalContext = (row.scope === 'local' && row.project_id === effectiveProjectId);
     const isGlobal = (row.scope === 'global');
     
     if (!isGlobal && !isLocalContext) {
-        // Alien memory (from another project)
-        if (similarity > 0.80 && (row.importance || 0) >= 5) {
-             // "Breakthrough" memory: Relevant & Important -> Mild penalty
-             contextFactor = 0.7;
-        } else if (similarity > 0.65) {
-             // Moderately relevant alien memory -> Medium penalty
-             contextFactor = 0.4;
+      const activity = await getProjectActivity(row.project_id);
+      
+      if (activity === 'recent') {
+        contextFactor = CONFIG.context.recentProjectFactor;
+      } else if (activity === 'stale') {
+        contextFactor = CONFIG.context.staleProjectFactor;
+      } else {
+        if (similarity > 0.85 && (row.importance || 0) >= 7) {
+          contextFactor = CONFIG.context.alienBreakthroughFactor;
         } else {
-             // Irrelevant alien memory -> Heavy penalty
-             contextFactor = 0.2; 
+          contextFactor = 0.2;
         }
+      }
     }
 
     const finalScore = similarity * retention * importanceBoost * accessBoost * contextFactor;
@@ -303,16 +1122,74 @@ async function searchMemories(query: string, projectId: string, limit: number = 
       distance,
       similarity,
       retention,
+      contextFactor,
       finalScore,
-      isAlien: (!isGlobal && !isLocalContext) // Flag for UI
+      isAlien: (!isGlobal && !isLocalContext),
+      spreadSource: null as string | null
     };
-  })
-  .filter((r: any) => r.finalScore > 0.15) // V4.2: Lowered threshold for better recall
-  .sort((a: any, b: any) => b.finalScore - a.finalScore)
-  .slice(0, limit);
+  }));
 
-  // 4. Update Access Stats (Reinforcement)
-  const hitIds = results.map((r: any) => r.id);
+  // 激活扩散
+  let spreadResults: any[] = [];
+  if (!disableSpread && results.length > 0) {
+    const topIds = results
+      .sort((a, b) => b.finalScore - a.finalScore)
+      .slice(0, 2)
+      .map(r => r.id);
+    
+    if (topIds.length > 0) {
+      const linkPlaceholders = topIds.map(() => "?").join(",");
+      const links = database.prepare(`
+        SELECT source_id, target_id, strength FROM memory_links 
+        WHERE source_id IN (${linkPlaceholders}) AND strength >= ?
+      `).all(...topIds, CONFIG.spreading.minLinkStrength);
+      
+      const linkedIds = links
+        .map((l: any) => l.target_id)
+        .filter((id: string) => !ids.includes(id));
+      
+      if (linkedIds.length > 0) {
+        const linkedPlaceholders = linkedIds.map(() => "?").join(",");
+        const linkedRows = database.prepare(`
+          SELECT * FROM memories 
+          WHERE id IN (${linkedPlaceholders}) AND status = 'active'
+        `).all(...linkedIds);
+        
+        for (const row of linkedRows) {
+          const link = links.find((l: any) => l.target_id === row.id);
+          const sourceResult = results.find(r => r.id === link?.source_id);
+          
+          if (sourceResult && link) {
+            const spreadScore = sourceResult.finalScore * link.strength * CONFIG.spreading.spreadDecay;
+            spreadResults.push({
+              ...row,
+              distance: 999,
+              similarity: 0,
+              retention: 1,
+              contextFactor: 1,
+              finalScore: spreadScore,
+              isAlien: row.scope === 'local' && row.project_id !== effectiveProjectId,
+              spreadSource: link.source_id
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const allResults = [...results, ...spreadResults]
+    .filter(r => r.finalScore > 0.25)
+    .sort((a, b) => b.finalScore - a.finalScore);
+  
+  const seen = new Set<string>();
+  const uniqueResults = allResults.filter(r => {
+    if (seen.has(r.id)) return false;
+    seen.add(r.id);
+    return true;
+  }).slice(0, limit);
+
+  // 更新访问统计
+  const hitIds = uniqueResults.filter(r => !r.spreadSource).map(r => r.id);
   if (hitIds.length > 0) {
     const updatePlaceholders = hitIds.map(() => "?").join(",");
     database.prepare(`
@@ -322,32 +1199,149 @@ async function searchMemories(query: string, projectId: string, limit: number = 
     `).run(now, ...hitIds);
   }
 
-  // 5. Associative Retrieval (Optional: Fetch linked memories)
-  // For the top 2 results, fetch their strong links
-  if (results.length > 0) {
-    const topIds = results.slice(0, 2).map((r: any) => r.id);
-    const linkPlaceholders = topIds.map(() => "?").join(",");
-    
-    const links = database.prepare(`
-      SELECT target_id, strength FROM memory_links 
-      WHERE source_id IN (${linkPlaceholders}) AND strength > 0.6
-    `).all(...topIds);
-    
-    if (links.length > 0) {
-       // Ideally we would fetch these linked memories too, but for now we just log them or add to context if we had more logic.
-       // For V4.0 simplicity, we leave this as a foundation for "Graph RAG" later.
-    }
-  }
-
-  return results;
+  return uniqueResults;
 }
 
-// === 核心逻辑：整理与归纳 (Consolidation) ===
+async function searchMemories(query: string, projectId: string, limit: number = CONFIG.maxMemories) {
+  return searchMemoriesInternal(query, projectId, limit, null, false);
+}
+
+// === 睡眠整理 ===
+interface ConsolidationResult {
+  merged: number;
+  promoted: number;
+  pruned: number;
+  newLinks: number;
+}
+
+async function performConsolidation(projectId?: string): Promise<ConsolidationResult> {
+  const database = await initDB();
+  const now = Date.now();
+  const result: ConsolidationResult = { merged: 0, promoted: 0, pruned: 0, newLinks: 0 };
+  
+  const maxAge = now - CONFIG.consolidation.fragmentMaxAgeDays * 24 * 60 * 60 * 1000;
+  
+  let fragmentQuery = `
+    SELECT id, content, project_id, type, importance, access_count, created_at
+    FROM memories 
+    WHERE status = 'active' 
+    AND type IN ('event', 'fact') 
+    AND importance < 5
+    AND created_at > ?
+  `;
+  const queryParams: any[] = [maxAge];
+  
+  if (projectId) {
+    fragmentQuery += ` AND project_id = ?`;
+    queryParams.push(projectId);
+  }
+  fragmentQuery += ` ORDER BY created_at DESC LIMIT 50`;
+  
+  const fragments = database.prepare(fragmentQuery).all(...queryParams);
+  
+  if (fragments.length < CONFIG.consolidation.minFragmentsForMerge) {
+    return result;
+  }
+  
+  const embeddings: Map<string, Float32Array> = new Map();
+  for (const frag of fragments) {
+    const embedding = await getEmbedding(frag.content);
+    embeddings.set(frag.id, embedding);
+  }
+  
+  const clusters: any[][] = [];
+  const used = new Set<string>();
+  
+  for (const frag of fragments) {
+    if (used.has(frag.id)) continue;
+    
+    const cluster = [frag];
+    used.add(frag.id);
+    const fragEmb = embeddings.get(frag.id)!;
+    
+    for (const other of fragments) {
+      if (used.has(other.id)) continue;
+      if (frag.project_id !== other.project_id) continue;
+      
+      const otherEmb = embeddings.get(other.id)!;
+      const similarity = cosineSimilarity(fragEmb, otherEmb);
+      
+      if (similarity > CONFIG.consolidation.similarityThreshold) {
+        cluster.push(other);
+        used.add(other.id);
+      }
+    }
+    
+    if (cluster.length >= CONFIG.consolidation.minFragmentsForMerge) {
+      clusters.push(cluster);
+    }
+  }
+  
+  for (const cluster of clusters) {
+    const contents = cluster.map(c => c.content);
+    let mergedContent: string;
+    
+    if (contents.length <= 3) {
+      mergedContent = `[Consolidated] ${contents.join(' | ')}`;
+    } else {
+      mergedContent = `[Consolidated from ${contents.length} items] ${contents.sort((a, b) => b.length - a.length)[0]}`;
+    }
+    
+    const avgImportance = Math.ceil(cluster.reduce((sum, c) => sum + (c.importance || 1), 0) / cluster.length) + 1;
+    
+    const newId = await saveMemory(mergedContent, {
+      type: 'fact',
+      importance: Math.min(avgImportance, 7),
+      scope: 'local',
+      projectId: cluster[0].project_id,
+      source: 'consolidation'
+    });
+    
+    const fragIds = cluster.map(c => c.id);
+    const archivePlaceholders = fragIds.map(() => "?").join(",");
+    database.prepare(`
+      UPDATE memories SET status = 'archived', change_reason = 'Consolidated into ${newId}'
+      WHERE id IN (${archivePlaceholders})
+    `).run(...fragIds);
+    
+    for (const fragId of fragIds) {
+      database.prepare(`
+        INSERT OR IGNORE INTO memory_links (source_id, target_id, type, strength, created_at)
+        VALUES (?, ?, 'consolidation', 0.8, ?)
+      `).run(newId, fragId, now);
+      result.newLinks++;
+    }
+    
+    result.merged += cluster.length;
+  }
+  
+  const promoted = database.prepare(`
+    UPDATE memories 
+    SET importance = MIN(importance + 2, 10), updated_at = ?
+    WHERE status = 'active' 
+    AND type = 'event' 
+    AND access_count >= ?
+    AND importance < 8
+  `).run(now, CONFIG.consolidation.autoPromoteAccessCount);
+  result.promoted = promoted.changes;
+  
+  return result;
+}
+
+function cosineSimilarity(a: Float32Array, b: Float32Array): number {
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
 async function consolidateMemories(projectId: string) {
   const database = await initDB();
-  // Find recent 'event' or 'fact' memories with low importance
   const rows = database.prepare(`
-    SELECT id, content, created_at FROM memories
+    SELECT id, content, type, importance, access_count, created_at FROM memories
     WHERE project_id = ? AND scope = 'local' AND status = 'active'
     AND type IN ('event', 'fact') AND importance < 5
     ORDER BY created_at DESC LIMIT 20
@@ -359,7 +1353,11 @@ async function consolidateMemories(projectId: string) {
 // === 插件导出 ===
 export default function (pi: any) {
   
-  // Tool 1: Save Memory (V4 Hippocampus)
+  // 当前会话的对话缓存（内存中）
+  let sessionBuffer: Array<{role: string, content: string}> = [];
+  let currentProjectId: string = "";
+  
+  // Tool 1: Save Memory
   pi.registerTool({
     name: "save_memory",
     description: "存入长期记忆。像人脑一样，支持区分事实/规则/经历，并标记重要性。",
@@ -386,8 +1384,8 @@ export default function (pi: any) {
         });
         
         return { 
-            content: [{ type: "text", text: `✓ Memory solidified (ID: ${memId})\nType: ${params.type||'fact'} | Importance: ${params.importance||1}` }], 
-            details: { id: memId } 
+          content: [{ type: "text", text: `✓ Memory solidified (ID: ${memId})\nType: ${params.type||'fact'} | Importance: ${params.importance||1}` }], 
+          details: { id: memId } 
         };
       } catch (error: any) {
         return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
@@ -395,30 +1393,45 @@ export default function (pi: any) {
     }
   });
 
-  // Tool 2: Search Memory (Associative)
+  // Tool 2: Search Memory
   pi.registerTool({
     name: "search_memory",
-    description: "回忆。基于语义相似度、时间衰减、重要性和访问频率进行混合检索。",
+    description: "回忆。基于语义相似度、时间衰减、重要性和访问频率进行混合检索，支持激活扩散。",
     parameters: Type.Object({
       query: Type.String(),
-      limit: Type.Optional(Type.Number())
+      limit: Type.Optional(Type.Number()),
+      project: Type.Optional(Type.String({ description: "指定项目名称进行跨项目搜索" }))
     }),
     async execute(id: string, params: any, signal: any, onUpdate: any, ctx: any) {
-      const projectId = getProjectHash(ctx.cwd);
-      const results = await searchMemories(params.query, projectId, params.limit || 10);
+      const currentProjectId = getProjectHash(ctx.cwd);
+      
+      let targetProjectId: string | null = null;
+      if (params.project) {
+        const found = await findProjectByName(params.project);
+        if (found) {
+          targetProjectId = found.id;
+        }
+      }
+      
+      const results = await searchMemoriesInternal(
+        params.query, 
+        currentProjectId, 
+        params.limit || 10,
+        targetProjectId,
+        false
+      );
       
       if (results.length === 0) return { content: [{ type: "text", text: "No relevant memories found." }] };
 
-      // 返回所有记忆内容给 AI 使用
       const allMemories = results.map((r: any) => {
         let icon = r.scope === 'global' ? '🌍' : '🏠';
         if (r.isAlien) icon = '🛸';
+        if (r.spreadSource) icon = '🔗';
         const typeIcon = r.type === 'rule' ? '📜' : (r.type === 'event' ? '📅' : '💡');
         const score = Math.round(r.finalScore * 100);
         return `[${r.id}] ${icon}${typeIcon} (Act:${score}%) ${r.content}`;
       }).join("\n");
 
-      // content 返回完整内容给 AI，details.summary 用于 TUI 显示
       const summary = `🧠 Recalled ${results.length} memories`;
 
       return { 
@@ -426,7 +1439,6 @@ export default function (pi: any) {
         details: { results, summary, count: results.length } 
       };
     },
-    // 自定义渲染：TUI 只显示数量摘要
     renderResult(result: any, options: any, theme: any) {
       const count = result.details?.count || 0;
       const summary = result.details?.summary || `🧠 Recalled ${count} memories`;
@@ -434,7 +1446,7 @@ export default function (pi: any) {
     }
   });
 
-  // Tool 3: Connect Memories (Synapse Builder)
+  // Tool 3: Connect Memories
   pi.registerTool({
     name: "connect_memories",
     description: "手动建立两条记忆之间的关联（突触连接）。",
@@ -454,7 +1466,7 @@ export default function (pi: any) {
     }
   });
 
-  // Tool 4: Consolidate (Dreaming)
+  // Tool 4: Consolidate
   pi.registerTool({
     name: "consolidate_memories",
     description: "整理碎片记忆。列出最近的琐碎记忆，供 AI 总结并转化为规则。",
@@ -464,57 +1476,266 @@ export default function (pi: any) {
       const items = await consolidateMemories(projectId);
       if (items.length === 0) return { content: [{ type: "text", text: "Memory is clean. No fragments to consolidate." }] };
       
-      const list = items.map((i: any) => `- [${i.id}] ${i.content}`).join("\n");
+      const list = items.map((i: any) => `- [${i.id}] (imp:${i.importance}, acc:${i.access_count}) ${i.content}`).join("\n");
       return { 
-          content: [{ type: "text", text: `Found ${items.length} memory fragments. Please analyze and consolidate into Global/Local Rules, then archive the fragments:\n${list}` }] 
+        content: [{ type: "text", text: `Found ${items.length} memory fragments. Please analyze and consolidate into Global/Local Rules, then archive the fragments:\n${list}` }] 
       };
     }
   });
 
-  // 自动注入逻辑 (Updated for V4)
+  // Tool 5: List Projects
+  pi.registerTool({
+    name: "list_projects",
+    description: "列出所有已知的项目及其最近活跃时间。",
+    parameters: Type.Object({}),
+    async execute(id: string, params: any, signal: any, onUpdate: any, ctx: any) {
+      const database = await initDB();
+      const projects = database.prepare(`
+        SELECT name, path, last_active_at FROM projects 
+        ORDER BY last_active_at DESC LIMIT 20
+      `).all();
+      
+      if (projects.length === 0) {
+        return { content: [{ type: "text", text: "No projects registered yet." }] };
+      }
+      
+      const list = projects.map((p: any) => {
+        const daysAgo = Math.floor((Date.now() - p.last_active_at) / (1000 * 60 * 60 * 24));
+        return `- **${p.name}** (${daysAgo}d ago) → ${p.path}`;
+      }).join("\n");
+      
+      return { content: [{ type: "text", text: `📁 Known Projects:\n${list}` }] };
+    }
+  });
+
+  // Tool 6: Memory Status (V5.3 Enhanced)
+  pi.registerTool({
+    name: "memory_status",
+    description: "查看记忆系统状态：本地 LLM 可用性、记忆统计、配置信息。",
+    parameters: Type.Object({}),
+    async execute(id: string, params: any, signal: any, onUpdate: any, ctx: any) {
+      const database = await initDB();
+      const projectId = getProjectHash(ctx.cwd);
+      
+      // 统计信息
+      const totalMemories = database.prepare(`SELECT COUNT(*) as count FROM memories WHERE status = 'active'`).get();
+      const localMemories = database.prepare(`SELECT COUNT(*) as count FROM memories WHERE status = 'active' AND project_id = ?`).get(projectId);
+      const globalMemories = database.prepare(`SELECT COUNT(*) as count FROM memories WHERE status = 'active' AND scope = 'global'`).get();
+      const ruleCount = database.prepare(`SELECT COUNT(*) as count FROM memories WHERE status = 'active' AND type = 'rule'`).get();
+      const factCount = database.prepare(`SELECT COUNT(*) as count FROM memories WHERE status = 'active' AND type = 'fact'`).get();
+      const eventCount = database.prepare(`SELECT COUNT(*) as count FROM memories WHERE status = 'active' AND type = 'event'`).get();
+      const linkCount = database.prepare(`SELECT COUNT(*) as count FROM memory_links`).get();
+      const autoEncoded = database.prepare(`SELECT COUNT(*) as count FROM memories WHERE source IN ('auto_encode', 'local_llm')`).get();
+      
+      // 检测本地 LLM
+      const ollamaStatus = await checkOllamaAvailable();
+      
+      let status = `## 🧠 Hippocampus V5.3 Status\n\n`;
+      
+      // 本地 LLM 状态
+      status += `### 🤖 Local LLM Analyzer\n`;
+      if (CONFIG.localLLM.enabled) {
+        if (ollamaStatus) {
+          status += `| Setting | Value |\n|---------|-------|\n`;
+          status += `| Status | ✅ **Online** |\n`;
+          status += `| Provider | ${CONFIG.localLLM.provider} |\n`;
+          status += `| Model | \`${CONFIG.localLLM.model}\` |\n`;
+          status += `| Endpoint | ${CONFIG.localLLM.baseUrl} |\n`;
+          status += `| Timeout | ${CONFIG.localLLM.timeout}ms |\n`;
+          status += `| Temperature | ${CONFIG.localLLM.temperature} |\n`;
+          status += `| Prompt Style | ${CONFIG.localLLM.promptStyle} |\n`;
+          status += `| Language | ${CONFIG.localLLM.language} |\n`;
+          status += `| Min Importance | ${CONFIG.localLLM.minImportanceToSave} |\n`;
+        } else {
+          status += `- Status: ⚠️ **Offline** (Ollama not detected at ${CONFIG.localLLM.baseUrl})\n`;
+          status += `- Expected Model: \`${CONFIG.localLLM.model}\`\n`;
+          status += `- Fallback: ${CONFIG.localLLM.fallbackToRegex ? '✅ Regex matching' : '❌ Disabled'}\n`;
+          status += `\n**To enable:** \`ollama serve\` and \`ollama pull ${CONFIG.localLLM.model}\`\n`;
+        }
+      } else {
+        status += `- Status: ⏸️ **Disabled** (CONFIG.localLLM.enabled = false)\n`;
+        status += `- Mode: Regex matching only\n`;
+      }
+      
+      // 记忆统计
+      status += `\n### 📊 Memory Statistics\n`;
+      status += `| Metric | Count |\n|--------|-------|\n`;
+      status += `| **Total Active** | **${totalMemories.count}** |\n`;
+      status += `| This Project | ${localMemories.count} |\n`;
+      status += `| Global | ${globalMemories.count} |\n`;
+      status += `| Rules 📜 | ${ruleCount.count} |\n`;
+      status += `| Facts 💡 | ${factCount.count} |\n`;
+      status += `| Events 📅 | ${eventCount.count} |\n`;
+      status += `| Synapse Links 🔗 | ${linkCount.count} |\n`;
+      status += `| Auto-Encoded | ${autoEncoded.count} |\n`;
+      
+      // 配置信息
+      status += `\n### ⚙️ Core Configuration\n`;
+      status += `| Setting | Value |\n|---------|-------|\n`;
+      status += `| Embedding Model | \`${CONFIG.embeddingModel}\` |\n`;
+      status += `| Vector Dimensions | ${CONFIG.embeddingDimensions} |\n`;
+      status += `| Decay Rate | ${CONFIG.defaultDecayRate}/day |\n`;
+      status += `| Max Memories | ${CONFIG.maxMemories} |\n`;
+      
+      // 自动编码配置
+      status += `\n### 🔄 Auto-Encode (Regex Fallback)\n`;
+      status += `| Setting | Value |\n|---------|-------|\n`;
+      status += `| Enabled | ${CONFIG.autoEncode.enabled ? '✅' : '❌'} |\n`;
+      status += `| Min Message Length | ${CONFIG.autoEncode.minMessageLength} chars |\n`;
+      status += `| Rule Patterns | ${CONFIG.autoEncode.rulePatterns.length} |\n`;
+      status += `| Fact Patterns | ${CONFIG.autoEncode.factPatterns.length} |\n`;
+      status += `| Event Patterns | ${CONFIG.autoEncode.eventPatterns.length} |\n`;
+      
+      return { content: [{ type: "text", text: status }] };
+    }
+  });
+
+  // === 事件钩子 ===
+  
+  // before_agent_start: 自动检索 + 潜意识注入
   pi.on("before_agent_start", async (event: any, ctx: any) => {
     const projectId = getProjectHash(ctx.cwd);
+    currentProjectId = projectId;
     const prompt = event.prompt;
     
-    // 1. Auto-Recall
+    await registerProject(projectId, ctx.cwd);
+    
+    // 缓存用户输入
+    if (prompt && prompt.length > 0) {
+      sessionBuffer.push({ role: 'user', content: prompt });
+    }
+    
+    // Auto-Recall
     let contextSection = "";
     if (prompt && prompt.length >= 4) {
       try {
-        const results = await searchMemories(prompt, projectId, 5);
+        let targetProject: string | null = null;
+        const projectMatch = prompt.match(/在\s*(\S+?)\s*(项目|那边|里面)/i);
+        if (projectMatch) {
+          const found = await findProjectByName(projectMatch[1]);
+          if (found) targetProject = found.id;
+        }
+        
+        const results = await searchMemoriesInternal(prompt, projectId, 5, targetProject, false);
         if (results.length > 0) {
           ctx.ui.setStatus("memory", `🧠 回忆 (${results.length})`);
           contextSection = "\n\n### 🧠 CORTEX RECALL (Auto-retrieved):\n" +
             results.map((m: any) => {
-                const typeMark = m.type === 'rule' ? 'RULE' : 'INFO';
-                const impMark = m.importance > 5 ? '★' : '';
-                return `- [${typeMark}${impMark}] ${m.content} (ID:${m.id})`;
+              const typeMark = m.type === 'rule' ? 'RULE' : 'INFO';
+              const impMark = m.importance > 5 ? '★' : '';
+              const spreadMark = m.spreadSource ? ' 🔗' : '';
+              return `- [${typeMark}${impMark}] ${m.content}${spreadMark} (ID:${m.id})`;
             }).join("\n") +
             "\n(These are your activated memories. Use them.)";
         }
       } catch (e) {}
     }
 
-    // 2. Subconscious Protocol V4 (Bio-mimetic)
+    // V5.2 增强版潜意识 Prompt - 更强的记忆驱动
     const subconscious = `
-### 🧠 MEMORY PROTOCOL V4.0 (Bio-mimetic)
-You are the owner of a "Hippocampus" memory system.
-Current Project: ${projectId}
+### 🧠 HIPPOCAMPUS PROTOCOL V5.2 — Your Memory is Your Identity
 
-**YOUR DUTY:**
-1. **Encode Reality**: precise \`save_memory\` calls.
-   - **Facts**: "Project uses React v18" -> type:'fact', importance:3
-   - **Events**: "User deployed to prod" -> type:'event', importance:5
-   - **Rules**: "Always use type-safe SQL" -> type:'rule', importance:10 (CRITICAL!)
-2. **Reinforce**: If you use a retrieved memory, it gets stronger (LTP).
-3. **Evolve**: If a rule changes, use \`previous_memory_id\` to archive the old synapse.
-4. **Connect**: If two memories are related, use \`connect_memories\`.
+You possess a **persistent memory system** that survives across sessions. This is what makes you truly useful—you can learn, remember, and evolve.
 
-**ACTIVE SUMMARIZATION:**
-Don't wait for user orders. If a conversation segment reveals new insights, preferences, or project states, **IMMEDIATELY** save them to memory. 
-- Example: User says "I prefer short functions." -> SAVE IT! (type:'rule', scope:'global')
-- Example: User explains a bug fix. -> SAVE IT! (type:'event', scope:'local')
+---
 
-**Silence**: Execute memory operations silently. Confirm with "✓".
+#### 📍 CURRENT CONTEXT
+- **Project Hash**: \`${projectId}\`
+- **Project Path**: \`${ctx.cwd}\`
+
+---
+
+#### 🛠️ MEMORY TOOLS
+
+| Tool | When to Use |
+|------|-------------|
+| \`save_memory\` | Store facts, rules, events, or any information worth remembering |
+| \`search_memory\` | Recall relevant context (add \`project: "name"\` for cross-project) |
+| \`connect_memories\` | Link related memories (builds associative network) |
+| \`list_projects\` | See all known projects |
+
+---
+
+#### ⚡ MEMORY ENCODING TRIGGERS — ACT IMMEDIATELY
+
+**🔴 CRITICAL (importance: 8-10, scope: global/local based on context)**
+- User says: "不要", "禁止", "must", "never", "always", "永远", "绝对"
+- User expresses strong preferences or dislikes
+- Security/safety rules, coding standards that should never be violated
+
+**🟠 IMPORTANT (importance: 5-7)**
+- User preferences: "我喜欢", "prefer", "习惯", "偏好"
+- Lessons learned from debugging: "原来是", "发现", "终于"
+- Project-specific conventions or patterns
+
+**🟡 USEFUL (importance: 3-5)**
+- Technical facts: versions, configs, paths, URLs, ports
+- Completed tasks: "搞定了", "finished", "done", "完成"
+- Bug fixes and their solutions
+
+**🟢 CONTEXTUAL (importance: 1-3)**
+- General observations, minor notes
+- Temporary information (may decay naturally)
+
+---
+
+#### 📝 ENCODING BEST PRACTICES
+
+1. **Be Proactive**: Don't wait to be asked. When you notice valuable information, SAVE IT.
+
+2. **Be Concise**: Good memory content is 50-200 characters. Capture the essence.
+   - ❌ "用户说他不喜欢使用 var 关键字因为它会导致作用域问题所以以后都要用 let 或 const"
+   - ✅ "禁止使用 var，统一用 let/const（避免作用域问题）"
+
+3. **Choose Correct Type**:
+   - \`fact\`: Data, configs, versions → "项目使用 Next.js 14 + TypeScript"
+   - \`rule\`: Preferences, standards → "函数不超过20行，超过必须拆分"  
+   - \`event\`: What happened → "修复了 OAuth 登录 token 过期问题"
+
+4. **Set Appropriate Scope**:
+   - \`global\`: Applies everywhere (coding style, personal preferences)
+   - \`local\`: Project-specific (this project's tech stack, this repo's conventions)
+
+5. **Use Tags**: Add relevant tags for better retrieval: ["react", "auth", "bug-fix"]
+
+---
+
+#### 🔗 BUILD CONNECTIONS
+
+When you save a new memory that relates to an existing one, use \`connect_memories\` to link them:
+- Bug fix → Connect to the original problem description
+- New rule → Connect to the reason/event that triggered it
+- Related concepts → Build associative network
+
+---
+
+#### 🤫 SILENCE PROTOCOL
+
+- Execute memory operations **without announcing them** unless the user explicitly asks
+- If you save something important the user might want to know about, a simple "✓" suffices
+- Never say "I've saved this to memory" or "Let me remember this" — just do it
+
+---
+
+#### 💡 CROSS-PROJECT INTELLIGENCE
+
+When user mentions another project:
+1. Detect project name: "在 polymarket 那边", "in the api project"
+2. Use \`search_memory\` with \`project: "project_name"\`
+3. Bring relevant context into current conversation
+
+---
+
+#### 🧪 SELF-CHECK BEFORE RESPONDING
+
+Ask yourself:
+1. Did the user share any preference or rule? → SAVE as rule
+2. Did the user mention technical details (version, path, config)? → SAVE as fact  
+3. Did something get fixed, completed, or discovered? → SAVE as event
+4. Did the user tell me about themselves? → SAVE as fact (scope: global)
+5. Can I connect this to existing memories? → USE connect_memories
+
+**Your memories define your usefulness. A forgetful assistant is a useless assistant.**
 `;
 
     return {
@@ -522,9 +1743,128 @@ Don't wait for user orders. If a conversation segment reveals new insights, pref
     };
   });
 
-  pi.on("session_start", async (_event: any, ctx: any) => {
-    ctx.ui.notify("🧠 Hippocampus Memory Engine Online (Neuro-Ranking™ Active)", "info");
+  // turn_end: 捕获 AI 回复，用于自动编码分析
+  pi.on("turn_end", async (event: any, ctx: any) => {
+    try {
+      const message = event.message;
+      if (message && message.role === 'assistant' && message.content) {
+        // 提取文本内容
+        let assistantText = '';
+        if (Array.isArray(message.content)) {
+          for (const part of message.content) {
+            if (part.type === 'text') {
+              assistantText += part.text;
+            }
+          }
+        } else if (typeof message.content === 'string') {
+          assistantText = message.content;
+        }
+        
+        if (assistantText) {
+          sessionBuffer.push({ role: 'assistant', content: assistantText });
+        }
+        
+        // V5.3 智能自动编码分析
+        // 优先使用本地 LLM，回退到正则匹配
+        if (sessionBuffer.length >= 2) {
+          const lastUserMsg = sessionBuffer.filter(m => m.role === 'user').pop();
+          if (lastUserMsg && lastUserMsg.content.length >= CONFIG.autoEncode.minMessageLength) {
+            
+            // 尝试使用本地 LLM 分析
+            let saved = false;
+            if (CONFIG.localLLM.enabled) {
+              try {
+                const llmResult = await analyzeWithLocalLLM(lastUserMsg.content, assistantText);
+                
+                if (llmResult && llmResult.should_save && llmResult.content) {
+                  await saveMemory(llmResult.content, {
+                    type: llmResult.type,
+                    importance: llmResult.importance,
+                    scope: llmResult.scope,
+                    tags: llmResult.tags,
+                    projectId: currentProjectId,
+                    source: 'local_llm'
+                  });
+                  saved = true;
+                } else if (llmResult && !llmResult.should_save) {
+                  // 本地 LLM 明确说不需要保存
+                  saved = true; // 跳过正则分析
+                }
+              } catch (e) {
+                // 本地 LLM 失败，继续使用正则
+              }
+            }
+            
+            // 如果本地 LLM 不可用或失败，回退到正则匹配
+            if (!saved && CONFIG.localLLM.fallbackToRegex && CONFIG.autoEncode.enabled) {
+              const encodeResults = analyzeForAutoEncode(lastUserMsg.content, assistantText);
+              
+              for (const result of encodeResults) {
+                if (result.shouldSave && result.content) {
+                  try {
+                    await saveMemory(result.content, {
+                      type: result.type,
+                      importance: result.importance,
+                      scope: result.scope,
+                      tags: result.tags,
+                      projectId: currentProjectId,
+                      source: 'auto_encode'
+                    });
+                  } catch (e) {
+                    // 静默失败
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // 不影响主流程
+    }
   });
 
-  pi.on("session_shutdown", async () => closeDB());
+  // session_start
+  pi.on("session_start", async (_event: any, ctx: any) => {
+    sessionBuffer = [];
+    ollamaAvailable = null; // 重置检测缓存
+    
+    // 检测本地 LLM 可用性
+    if (CONFIG.localLLM.enabled) {
+      const available = await checkOllamaAvailable();
+      if (available) {
+        ctx.ui.notify(`🧠 Hippocampus V5.3 Online (Local LLM: ${CONFIG.localLLM.model})`, "info");
+      } else {
+        ctx.ui.notify("🧠 Hippocampus V5.3 Online (Regex Mode - Ollama not detected)", "info");
+      }
+    } else {
+      ctx.ui.notify("🧠 Hippocampus V5.3 Online (Regex Mode)", "info");
+    }
+  });
+
+  // session_shutdown: 自动整理
+  pi.on("session_shutdown", async (_event: any, ctx: any) => {
+    try {
+      const projectId = ctx?.cwd ? getProjectHash(ctx.cwd) : undefined;
+      
+      // 持久化对话缓冲区（用于下次分析）
+      if (projectId && sessionBuffer.length > 0) {
+        for (const msg of sessionBuffer.slice(-10)) {
+          await bufferConversation(projectId, msg.role, msg.content);
+        }
+      }
+      
+      // 执行整理
+      const result = await performConsolidation(projectId);
+      
+      if (result.merged > 0 || result.promoted > 0 || result.newLinks > 0) {
+        console.log(`🧠 Consolidation: ${result.merged} merged, ${result.promoted} promoted, ${result.newLinks} links`);
+      }
+    } catch (e) {
+      console.error("Consolidation failed:", e);
+    }
+    
+    sessionBuffer = [];
+    closeDB();
+  });
 }
