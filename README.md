@@ -107,7 +107,7 @@ echo Done! Restart pi to activate.
 
 ## 🤖 Setting Up Local LLM (Strongly Recommended!)
 
-**It is strongly recommended to deploy a local model with at least 8B parameters (recommended `qwen2.5:7b-instruct` or `qwen3:8b`).**
+**It is strongly recommended to deploy a local model with at least 8B parameters.**
 
 Why? Because the core features of V6.0 — **Muscle Memory** and **Holographic Search** — rely entirely on the reasoning capabilities of a local LLM to function.
 
