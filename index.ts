@@ -314,10 +314,29 @@ const CONFIG = {
       // 英文：Topic Focus (New)
       /working on|focusing on|dealing with|regarding/i,
     ],
+  },
+  
+  // V6.0.0 系统清理配置 (灵活过滤)
+  systemCleaning: {
+    patterns: [
+      /\[Historical context:[\s\S]*?\]/gi,
+      /\[Context:[\s\S]*?\]/gi,
+      /^Do not mimic this format.*$/gim,
+      /^Note:.*$/gim,
+      /\[System Message:[\s\S]*?\]/gi,
+    ]
   }
 };
 
 // === 辅助函数 ===
+function cleanSystemArtifacts(text: string): string {
+  let cleaned = text;
+  for (const pattern of CONFIG.systemCleaning.patterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  return cleaned.trim();
+}
+
 function getProjectHash(cwd: string): string {
   return crypto.createHash("md5").update(cwd).digest("hex");
 }
@@ -334,7 +353,7 @@ let currentLLMMode: string = 'Regex';  // 当前模式：模型名或 'Regex'
 let lastRecallCount: number = 0;  // 上次召回数量
 
 // 更新底部状态栏（合并显示）
-const STATUS_VERSION = "v6.0.0";
+const STATUS_VERSION = "v6.0.1";
 function updateStatusBar(ctx: any) {
   const modelDisplay = currentLLMMode === 'Regex' ? 'Regex' : currentLLMMode;
   const recallText = lastRecallCount >= 1000 ? '999+' : lastRecallCount.toString();
@@ -2042,13 +2061,15 @@ export default function (pi: any) {
     }),
     async execute(id: string, params: any, signal: any, onUpdate: any, ctx: any) {
       try {
-        // Safety check: prevent saving system injection messages
-        if (params.content && (
-            params.content.includes('[Historical context:') || 
-            params.content.includes('Do not mimic this format')
-        )) {
+        // Safety check: prevent saving system injection messages (Flexible Cleaning)
+        let cleanContent = params.content;
+        if (cleanContent) {
+          cleanContent = cleanSystemArtifacts(cleanContent);
+        }
+        
+        if (!cleanContent) {
             return { 
-                content: [{ type: "text", text: "⚠️ Ignored system injection message." }], 
+                content: [{ type: "text", text: "⚠️ Ignored system injection message (Empty after cleaning)." }], 
                 isError: false 
             };
         }
@@ -2524,14 +2545,14 @@ Ask yourself:
         
         if (assistantText) {
           // FIX: 过滤掉系统注入的 Historical context 警告，防止污染记忆和干扰 LLM 分析
-          // 这些是 Pi 框架注入的纠错提示，不应被视为助手的真实回复
-          if (assistantText.includes('[Historical context:') || 
-              assistantText.includes('Do not mimic this format') ||
-              assistantText.startsWith('[Historical context:')) {
-            return;
+          // 使用正则清理，保留有用信息
+          const cleanedText = cleanSystemArtifacts(assistantText);
+          
+          if (!cleanedText) {
+            return; // 只有系统注入信息，忽略
           }
 
-          sessionBuffer.push({ role: 'assistant', content: assistantText });
+          sessionBuffer.push({ role: 'assistant', content: cleanedText });
         }
         
         // V5.4.1 智能自动编码分析
